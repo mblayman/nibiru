@@ -24,3 +24,9 @@ Where to start?
 ```bash
 printf 'GET /hello.lua\n\n' | nc 127.0.0.1 8080
 ```
+
+## Unknowns
+
+- What should I do for unit testing C code?
+- Should I add an acceptance test?
+- What is the C version of prettier?
