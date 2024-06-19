@@ -23,10 +23,29 @@ int main(void) {
         return 1;
     }
 
-    // TODO: Do stuff like get a socket and bind to something in the
-    // server_info. How do I know which one in the list is valid?
+    struct addrinfo *current_server_info;
+    int listen_socket_fd;
+    for (current_server_info = server_info; current_server_info != NULL;
+         current_server_info = current_server_info->ai_next) {
+        listen_socket_fd = socket(current_server_info->ai_family,
+                                  current_server_info->ai_socktype,
+                                  current_server_info->ai_protocol);
+        if (listen_socket_fd == -1) {
+            // TODO: this should log, but it shouldn't be a prominent error
+            // since the objective is to bind to any address in server_info.
+            continue;
+        }
+
+        // TODO: setsockopt - why?
+
+        // TODO: bind
+    }
 
     freeaddrinfo(server_info);
+
+    // TODO: check current_server_info == NULL means nothing bound.
+
+    // TOOD: listen
 
     return 0;
 }
