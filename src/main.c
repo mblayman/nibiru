@@ -1,7 +1,9 @@
 #include <netdb.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 int main(void) {
     int status;
@@ -31,21 +33,41 @@ int main(void) {
                                   current_server_info->ai_socktype,
                                   current_server_info->ai_protocol);
         if (listen_socket_fd == -1) {
-            // TODO: this should log, but it shouldn't be a prominent error
-            // since the objective is to bind to any address in server_info.
+            // TODO: this should debug log, but it shouldn't be a prominent
+            // error since the objective is to bind to any address in
+            // server_info.
             continue;
         }
 
-        // TODO: setsockopt - why?
+        // TODO: setsockopt for SO_REUSEADDR. This may be needed if hitting the
+        // TIME_WAIT state. It introduces some data risk.
+        // https://stackoverflow.com/a/3233022 covers this well.
 
-        // TODO: bind
+        status = bind(listen_socket_fd, current_server_info->ai_addr,
+                      current_server_info->ai_addrlen);
+        if (status == -1) {
+            close(listen_socket_fd);
+            // TODO: this should debug log, but it shouldn't be a prominent
+            // error since the objective is to bind to any address in
+            // server_info.
+            continue;
+        }
+
+        break;
     }
 
     freeaddrinfo(server_info);
 
-    // TODO: check current_server_info == NULL means nothing bound.
+    // TODO: test that this captures the error from the socket or bind call above.
+    // This should be possible once the listen loop is going.
+    if (current_server_info == NULL) {
+        perror("broken");
+        exit(1);
+    }
 
     // TOOD: listen
+
+    close(listen_socket_fd);
 
     return 0;
 }
