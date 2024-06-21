@@ -5,3 +5,6 @@ build:
 
 format:
 	clang-format -i src/**.c
+
+req:
+	@printf 'GET /\n\n' | nc 127.0.0.1 8080

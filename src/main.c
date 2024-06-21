@@ -33,9 +33,6 @@ int main(void) {
                                   current_server_info->ai_socktype,
                                   current_server_info->ai_protocol);
         if (listen_socket_fd == -1) {
-            // TODO: this should debug log, but it shouldn't be a prominent
-            // error since the objective is to bind to any address in
-            // server_info.
             continue;
         }
 
@@ -47,9 +44,6 @@ int main(void) {
                       current_server_info->ai_addrlen);
         if (status == -1) {
             close(listen_socket_fd);
-            // TODO: this should debug log, but it shouldn't be a prominent
-            // error since the objective is to bind to any address in
-            // server_info.
             continue;
         }
 
@@ -58,10 +52,8 @@ int main(void) {
 
     freeaddrinfo(server_info);
 
-    // TODO: test that this captures the error from the socket or bind call
-    // above. This should be possible once the listen loop is going.
     if (current_server_info == NULL) {
-        perror("broken");
+        perror("nibiru error");
         exit(1);
     }
 
@@ -69,11 +61,31 @@ int main(void) {
     status = listen(listen_socket_fd, backlog);
     if (status == -1) {
         close(listen_socket_fd);
-        // TODO: this should debug log, but it shouldn't be a prominent
-        // error since the objective is to bind to any address in
-        // server_info.
-        perror("fix this message");
+        perror("nibiru error");
         exit(1);
+    }
+
+    // TODO: make this message a format string.
+    printf("Listening on 8080...\n");
+
+    int accepted_socket_fd;
+    struct sockaddr_storage accepted_socket_storage;
+    socklen_t storage_size = sizeof(accepted_socket_storage);
+    while (1) {
+        accepted_socket_fd =
+            accept(listen_socket_fd,
+                   (struct sockaddr *)&accepted_socket_storage, &storage_size);
+        if (accepted_socket_fd == -1) {
+            perror("nibiru error");
+            continue;
+        }
+
+        // TODO: This is serial for now. It would be easiest to do a forking
+        // server, but I think that would be slow. Don't worry about this until
+        // Lua is integrated.
+        printf("accepted a connection\n");
+
+        close(accepted_socket_fd);
     }
 
     close(listen_socket_fd);
