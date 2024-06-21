@@ -58,14 +58,23 @@ int main(void) {
 
     freeaddrinfo(server_info);
 
-    // TODO: test that this captures the error from the socket or bind call above.
-    // This should be possible once the listen loop is going.
+    // TODO: test that this captures the error from the socket or bind call
+    // above. This should be possible once the listen loop is going.
     if (current_server_info == NULL) {
         perror("broken");
         exit(1);
     }
 
-    // TOOD: listen
+    int backlog = 32; // `man 2 listen` says max is 128.
+    status = listen(listen_socket_fd, backlog);
+    if (status == -1) {
+        close(listen_socket_fd);
+        // TODO: this should debug log, but it shouldn't be a prominent
+        // error since the objective is to bind to any address in
+        // server_info.
+        perror("fix this message");
+        exit(1);
+    }
 
     close(listen_socket_fd);
 
