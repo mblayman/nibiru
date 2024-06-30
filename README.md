@@ -11,7 +11,7 @@ Where to start?
 - How can I open a socket in Lua? Will I have to use the C API?
 - What lesson can I learn from Gunicorn? What is the architecture?
 - I should steer clear of Zig for now. If I open up too many threads, I'll never get anywhere.
-- I can study LuaSocket for inspiration.
+- I can study [LuaSocket](https://github.com/lunarmodules/luasocket/blob/master/src/io.c#L11) for inspiration.
 - I should make a second program that just uses the Lua C API to demo that I can do that.
 - Here is a network guide: https://beej.us/guide/bgnet/html//index.html
 - Maybe I should read [Programming in Lua, 4th Edition](https://www.goodreads.com/book/show/55647909-programming-in-lua-fourth-edition-by-roberto-ierusalimschy-lua-org?ref=nav_sb_ss_2_18)
