@@ -30,9 +30,19 @@ int main(void) {
         return 1;
     }
 
-    // TODO: store a reference to the function for multiple calls.
-    // TODO: pop the function to clean up the stack.
-    // TODO: call multiple times, from the reference, to prove that I can.
+    int handle_connection_reference = luaL_ref(lua_state, LUA_REGISTRYINDEX);
+    // XXX: take the module of the stack. is this necessary?
+    lua_pop(lua_state, 1);
+
+    // Add handle_connection back to the stack.
+    lua_rawgeti(lua_state, LUA_REGISTRYINDEX, handle_connection_reference);
+
+    status = lua_pcall(lua_state, 0, 0, 0);
+    if (status != LUA_OK) {
+        printf("Error: %s\n", lua_tostring(lua_state, -1));
+        lua_close(lua_state);
+        return 1;
+    }
 
     lua_close(lua_state);
 

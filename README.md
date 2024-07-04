@@ -11,9 +11,7 @@ Where to start?
 - How can I open a socket in Lua? Will I have to use the C API?
 - What lesson can I learn from Gunicorn? What is the architecture?
 - I should steer clear of Zig for now. If I open up too many threads, I'll never get anywhere.
-- I can study [LuaSocket](https://github.com/lunarmodules/luasocket/blob/master/src/io.c#L11) for inspiration.
 - I should make a second program that just uses the Lua C API to demo that I can do that.
-- Here is a network guide: https://beej.us/guide/bgnet/html//index.html
 - Maybe I should read [Programming in Lua, 4th Edition](https://www.goodreads.com/book/show/55647909-programming-in-lua-fourth-edition-by-roberto-ierusalimschy-lua-org?ref=nav_sb_ss_2_18)
 - Apparently, http://lua.sqlite.org/index.cgi/home is a thing.
 - https://redbean.dev/ is in the same space. Lots of interesting ideas here like TLS, gzip, SQLite
@@ -47,3 +45,8 @@ Instead, I think I want to stick with WSGI over ASGI.
 - The Lua side can construct the whole response so that the C side only has to flush
   the bytes over the network.
 - Over time, I could move HTTP parsing to the C side to improve performance.
+
+## Resources
+
+- Here is a network guide: https://beej.us/guide/bgnet/html//index.html
+- [LuaSocket](https://github.com/lunarmodules/luasocket/blob/master/src/io.c#L11)
