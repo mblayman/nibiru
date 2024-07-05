@@ -31,18 +31,27 @@ int main(void) {
     }
 
     int handle_connection_reference = luaL_ref(lua_state, LUA_REGISTRYINDEX);
-    // XXX: take the module of the stack. is this necessary?
+
+    // Take the module off the stack to clean up.
     lua_pop(lua_state, 1);
 
     // Add handle_connection back to the stack.
     lua_rawgeti(lua_state, LUA_REGISTRYINDEX, handle_connection_reference);
 
-    status = lua_pcall(lua_state, 0, 0, 0);
+    const char* data = "Hello from C!";
+    lua_pushstring(lua_state, data);
+
+    status = lua_pcall(lua_state, 1, 1, 0);
     if (status != LUA_OK) {
         printf("Error: %s\n", lua_tostring(lua_state, -1));
         lua_close(lua_state);
         return 1;
     }
+
+    const char* response = lua_tostring(lua_state, -1);
+    lua_pop(lua_state, 1);
+
+    printf("%s\n", response);
 
     lua_close(lua_state);
 
