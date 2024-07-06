@@ -9,7 +9,6 @@ Write a Lua webserver from scratch. Only use code that I have written myself.
 Where to start?
 
 - What lesson can I learn from Gunicorn? What is the architecture?
-- I should make a second program that just uses the Lua C API to demo that I can do that.
 - Maybe I should read [Programming in Lua, 4th Edition](https://www.goodreads.com/book/show/55647909-programming-in-lua-fourth-edition-by-roberto-ierusalimschy-lua-org?ref=nav_sb_ss_2_18)
 - Apparently, http://lua.sqlite.org/index.cgi/home is a thing.
 - https://redbean.dev/ is in the same space. Lots of interesting ideas here like TLS, gzip, SQLite
@@ -20,6 +19,7 @@ Where to start?
 - Should I add an acceptance test?
 - How could I integrate valgrind and other C quality checks? I know nothing here.
 - How would I deal with Unicode? http://lua-users.org/wiki/LuaUnicode
+- How do I load from a module path from C?
 
 ## Inspiration
 

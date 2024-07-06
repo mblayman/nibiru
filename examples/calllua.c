@@ -49,9 +49,13 @@ int main(void) {
     }
 
     const char* response = lua_tostring(lua_state, -1);
-    lua_pop(lua_state, 1);
 
     printf("%s\n", response);
+
+    // Only pop after C has the chance to do something. If I don't,
+    // then there is a chance that the Lua GC kicks in and frees the memory.
+    // That's silly for this example, but could matter in a real setting.
+    lua_pop(lua_state, 1);
 
     lua_close(lua_state);
 
