@@ -4,7 +4,7 @@ local connector = {}
 --- @param data string
 --- @return string
 function connector.handle_connection(data)
-	return "response to: " .. data
+    return "response to: " .. data
 end
 
 return connector
