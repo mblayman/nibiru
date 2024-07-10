@@ -1,5 +1,10 @@
+CFLAGS += -I/usr/local/Cellar/lua/5.4.6/include/lua
+CFLAGS += -L/usr/local/Cellar/lua/5.4.6/lib
+CFLAGS += -llua
+
 build:
 	cc \
+		$(CFLAGS) \
 		src/main.c \
 		-o nibiru
 

@@ -1,3 +1,6 @@
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +10,39 @@
 
 int main(void) {
     int status;
+
+    /*
+     * Initialize Lua.
+     */
+    lua_State *lua_state = luaL_newstate();
+    luaL_openlibs(lua_state);
+
+    // Load the module.
+    lua_getglobal(lua_state, "require");
+    const char* module_name = "nibiru.connector";
+    lua_pushstring(lua_state, module_name);
+    status = lua_pcall(lua_state, 1, 1, 0);
+    if (status != LUA_OK) {
+        printf("Error: %s\n", lua_tostring(lua_state, -1));
+        lua_close(lua_state);
+        return 1;
+    }
+
+    int lua_type = lua_getfield(lua_state, -1, "handle_connection");
+    if (lua_type != LUA_TFUNCTION) {
+        printf("Unexpected type: handle_connection is not a function.");
+        lua_close(lua_state);
+        return 1;
+    }
+
+    int handle_connection_reference = luaL_ref(lua_state, LUA_REGISTRYINDEX);
+
+    // Take the module off the stack to clean up.
+    lua_pop(lua_state, 1);
+
+    /*
+     * Start network connections.
+     */
     struct addrinfo hints;
     struct addrinfo *server_info;
 
@@ -85,10 +121,33 @@ int main(void) {
         // Lua is integrated.
         printf("accepted a connection\n");
 
+        // Add handle_connection back to the Lua stack.
+        lua_rawgeti(lua_state, LUA_REGISTRYINDEX, handle_connection_reference);
+
+        const char* data = "Hello from C!";
+        lua_pushstring(lua_state, data);
+
+        status = lua_pcall(lua_state, 1, 1, 0);
+        if (status != LUA_OK) {
+            printf("Error: %s\n", lua_tostring(lua_state, -1));
+            lua_close(lua_state);
+            return 1;
+        }
+
+        const char* response = lua_tostring(lua_state, -1);
+
+        printf("%s\n", response);
+
+        // Only pop after C has the chance to do something. If I don't,
+        // then there is a chance that the Lua GC kicks in and frees the memory.
+        // That's silly for this example, but could matter in a real setting.
+        lua_pop(lua_state, 1);
+
         close(accepted_socket_fd);
     }
 
     close(listen_socket_fd);
+    lua_close(lua_state);
 
     return 0;
 }

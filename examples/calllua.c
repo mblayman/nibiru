@@ -30,7 +30,7 @@ int main(void) {
     // Take the module off the stack to clean up.
     lua_pop(lua_state, 1);
 
-    // Add handle_connection back to the stack.
+    // Add handle_connection back to the Lua stack.
     lua_rawgeti(lua_state, LUA_REGISTRYINDEX, handle_connection_reference);
 
     const char* data = "Hello from C!";
