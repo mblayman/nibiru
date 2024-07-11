@@ -1,6 +1,6 @@
+#include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
-#include <lauxlib.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +19,7 @@ int main(void) {
 
     // Load the module.
     lua_getglobal(lua_state, "require");
-    const char* module_name = "nibiru.connector";
+    const char *module_name = "nibiru.connector";
     lua_pushstring(lua_state, module_name);
     status = lua_pcall(lua_state, 1, 1, 0);
     if (status != LUA_OK) {
@@ -104,6 +104,10 @@ int main(void) {
     // TODO: make this message a format string.
     printf("Listening on 8080...\n");
 
+    // TODO: This should probably be much larger and configurable.
+    int receive_buffer_size = 10000;
+    char receive_buffer[receive_buffer_size];
+
     int accepted_socket_fd;
     struct sockaddr_storage accepted_socket_storage;
     socklen_t storage_size = sizeof(accepted_socket_storage);
@@ -119,13 +123,20 @@ int main(void) {
         // TODO: This is serial for now. It would be easiest to do a forking
         // server, but I think that would be slow. Don't worry about this until
         // Lua is integrated.
-        printf("accepted a connection\n");
+
+        int bytes_received =
+            recv(accepted_socket_fd, receive_buffer, receive_buffer_size, 0);
+        if (bytes_received > 0) {
+            // Add null to terminate the C string from Lua's point of view.
+            receive_buffer[bytes_received] = '\0';
+        } else {
+            // TODO: 0 is closed connection, -1 is error. Handle those.
+        }
 
         // Add handle_connection back to the Lua stack.
         lua_rawgeti(lua_state, LUA_REGISTRYINDEX, handle_connection_reference);
 
-        const char* data = "Hello from C!";
-        lua_pushstring(lua_state, data);
+        lua_pushstring(lua_state, receive_buffer);
 
         status = lua_pcall(lua_state, 1, 1, 0);
         if (status != LUA_OK) {
@@ -134,8 +145,9 @@ int main(void) {
             return 1;
         }
 
-        const char* response = lua_tostring(lua_state, -1);
+        const char *response = lua_tostring(lua_state, -1);
 
+        // TODO: send the response back via `send`.
         printf("%s\n", response);
 
         // Only pop after C has the chance to do something. If I don't,
