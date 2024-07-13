@@ -145,10 +145,15 @@ int main(void) {
             return 1;
         }
 
-        const char *response = lua_tostring(lua_state, -1);
+        size_t response_length;
+        const char *response = lua_tolstring(lua_state, -1, &response_length);
 
-        // TODO: send the response back via `send`.
-        printf("%s\n", response);
+        // printf("%s\n", response);
+        // printf("%zu\n", response_length);
+        int bytes_sent = send(accepted_socket_fd, response, response_length, 0);
+        if (bytes_sent == -1) {
+            // TODO: handle error
+        }
 
         // Only pop after C has the chance to do something. If I don't,
         // then there is a chance that the Lua GC kicks in and frees the memory.
