@@ -74,7 +74,18 @@ int main(int argc, char *argv[]) {
     if (bootstrap_reference == -1) {
         return 1;
     }
-    // TODO: call bootstrap to get the WSGI callable.
+
+    lua_rawgeti(lua_state, LUA_REGISTRYINDEX, bootstrap_reference);
+    lua_pushstring(lua_state, app_module);
+    lua_pushstring(lua_state, app_name);
+    // TODO: update the arg to return a value to the stack.
+    status = lua_pcall(lua_state, 2, 0, 0);
+    if (status != LUA_OK) {
+        printf("Error: %s\n", lua_tostring(lua_state, -1));
+        lua_close(lua_state);
+        return 1;
+    }
+    // TODO: check that the WSGI callable is function and store it in the registry.
 
     // Load the connection handler.
     int handle_connection_reference = nibiru_load_registered_lua_function(
@@ -198,9 +209,8 @@ int main(int argc, char *argv[]) {
             // TODO: handle error
         }
 
-        // Only pop after C has the chance to do something. If I don't,
-        // then there is a chance that the Lua GC kicks in and frees the memory.
-        // That's silly for this example, but could matter in a real setting.
+        // Only pop after C has the chance to do something. If popped early,
+        // there is a chance that the Lua GC kicks in and frees the memory.
         lua_pop(lua_state, 1);
 
         close(accepted_socket_fd);
