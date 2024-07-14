@@ -8,7 +8,44 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+/**
+ * Load a Lua module and store a specified module function into the Lua
+ * registry.
+ * @param lua_state The Lua state object
+ * @param module_name The Lua module to load
+ * @param function_name The function within the module
+ * @return The function's reference in the Lua registry or -1 on failure.
+ */
+int load_registered_lua_function(lua_State *lua_state, const char *module_name,
+                                 const char *function_name) {
+    lua_getglobal(lua_state, "require");
+    lua_pushstring(lua_state, module_name);
+    int status = lua_pcall(lua_state, 1, 1, 0);
+    if (status != LUA_OK) {
+        printf("Error: %s\n", lua_tostring(lua_state, -1));
+        lua_close(lua_state);
+        return -1;
+    }
+
+    int lua_type = lua_getfield(lua_state, -1, function_name);
+    if (lua_type != LUA_TFUNCTION) {
+        printf("Unexpected type: %s is not a function.", function_name);
+        lua_close(lua_state);
+        return -1;
+    }
+
+    int function_reference = luaL_ref(lua_state, LUA_REGISTRYINDEX);
+
+    // Take the module off the stack to clean up.
+    lua_pop(lua_state, 1);
+
+    return function_reference;
+}
+
 int main(int argc, char *argv[]) {
+    /*
+     * Process arguments.
+     */
     if (argc < 2) {
         printf("Expected app callable in format of: module.path:app\n");
         return 1;
@@ -30,28 +67,20 @@ int main(int argc, char *argv[]) {
     lua_State *lua_state = luaL_newstate();
     luaL_openlibs(lua_state);
 
-    // Load the module.
-    lua_getglobal(lua_state, "require");
-    const char *module_name = "nibiru.connector";
-    lua_pushstring(lua_state, module_name);
-    status = lua_pcall(lua_state, 1, 1, 0);
-    if (status != LUA_OK) {
-        printf("Error: %s\n", lua_tostring(lua_state, -1));
-        lua_close(lua_state);
+    // Load the bootstrap module to get the WSGI callable.
+    int bootstrap_reference =
+        load_registered_lua_function(lua_state, "nibiru.boot", "bootstrap");
+    if (bootstrap_reference == -1) {
         return 1;
     }
+    // TODO: call bootstrap to get the WSGI callable.
 
-    int lua_type = lua_getfield(lua_state, -1, "handle_connection");
-    if (lua_type != LUA_TFUNCTION) {
-        printf("Unexpected type: handle_connection is not a function.");
-        lua_close(lua_state);
+    // Load the connection handler.
+    int handle_connection_reference = load_registered_lua_function(
+        lua_state, "nibiru.connector", "handle_connection");
+    if (handle_connection_reference == -1) {
         return 1;
     }
-
-    int handle_connection_reference = luaL_ref(lua_state, LUA_REGISTRYINDEX);
-
-    // Take the module off the stack to clean up.
-    lua_pop(lua_state, 1);
 
     /*
      * Start network connections.
