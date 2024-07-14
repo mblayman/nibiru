@@ -8,7 +8,20 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-int main(void) {
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        printf("Expected app callable in format of: module.path:app\n");
+        return 1;
+    }
+
+    char *app_specifier = argv[1];
+    char *app_module = strsep(&app_specifier, ":");
+    char *app_name = strsep(&app_specifier, ":");
+    // The default callable name is "app".
+    if (app_name == NULL) {
+        app_name = "app";
+    }
+
     int status;
 
     /*

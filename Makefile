@@ -4,9 +4,12 @@ CFLAGS += -llua
 
 build:
 	cc \
-		$(CFLAGS) \
-		src/main.c \
-		-o nibiru
+	$(CFLAGS) \
+	src/main.c \
+	-o nibiru
+
+run: build
+	./nibiru docs.app:app
 
 format:
 	clang-format -i src/**.c
