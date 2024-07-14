@@ -16,8 +16,9 @@
  * @param function_name The function within the module
  * @return The function's reference in the Lua registry or -1 on failure.
  */
-int load_registered_lua_function(lua_State *lua_state, const char *module_name,
-                                 const char *function_name) {
+int nibiru_load_registered_lua_function(lua_State *lua_state,
+                                        const char *module_name,
+                                        const char *function_name) {
     lua_getglobal(lua_state, "require");
     lua_pushstring(lua_state, module_name);
     int status = lua_pcall(lua_state, 1, 1, 0);
@@ -68,15 +69,15 @@ int main(int argc, char *argv[]) {
     luaL_openlibs(lua_state);
 
     // Load the bootstrap module to get the WSGI callable.
-    int bootstrap_reference =
-        load_registered_lua_function(lua_state, "nibiru.boot", "bootstrap");
+    int bootstrap_reference = nibiru_load_registered_lua_function(
+        lua_state, "nibiru.boot", "bootstrap");
     if (bootstrap_reference == -1) {
         return 1;
     }
     // TODO: call bootstrap to get the WSGI callable.
 
     // Load the connection handler.
-    int handle_connection_reference = load_registered_lua_function(
+    int handle_connection_reference = nibiru_load_registered_lua_function(
         lua_state, "nibiru.connector", "handle_connection");
     if (handle_connection_reference == -1) {
         return 1;
