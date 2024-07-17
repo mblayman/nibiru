@@ -78,14 +78,13 @@ int main(int argc, char *argv[]) {
     lua_rawgeti(lua_state, LUA_REGISTRYINDEX, bootstrap_reference);
     lua_pushstring(lua_state, app_module);
     lua_pushstring(lua_state, app_name);
-    // TODO: update the arg to return a value to the stack.
-    status = lua_pcall(lua_state, 2, 0, 0);
+    status = lua_pcall(lua_state, 2, 1, 0);
     if (status != LUA_OK) {
         printf("Error: %s\n", lua_tostring(lua_state, -1));
         lua_close(lua_state);
         return 1;
     }
-    // TODO: check that the WSGI callable is function and store it in the registry.
+    int application_reference = luaL_ref(lua_state, LUA_REGISTRYINDEX);
 
     // Load the connection handler.
     int handle_connection_reference = nibiru_load_registered_lua_function(
@@ -190,9 +189,10 @@ int main(int argc, char *argv[]) {
         // Add handle_connection back to the Lua stack.
         lua_rawgeti(lua_state, LUA_REGISTRYINDEX, handle_connection_reference);
 
+        lua_rawgeti(lua_state, LUA_REGISTRYINDEX, application_reference);
         lua_pushstring(lua_state, receive_buffer);
 
-        status = lua_pcall(lua_state, 1, 1, 0);
+        status = lua_pcall(lua_state, 2, 1, 0);
         if (status != LUA_OK) {
             printf("Error: %s\n", lua_tostring(lua_state, -1));
             lua_close(lua_state);
