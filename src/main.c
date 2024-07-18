@@ -84,6 +84,12 @@ int main(int argc, char *argv[]) {
         lua_close(lua_state);
         return 1;
     }
+    status = lua_isfunction(lua_state, -1);
+    if (status == 0) {
+        printf("`%s` is not a valid function.\n", app_name);
+        lua_close(lua_state);
+        return 1;
+    }
     int application_reference = luaL_ref(lua_state, LUA_REGISTRYINDEX);
 
     // Load the connection handler.

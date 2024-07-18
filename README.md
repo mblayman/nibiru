@@ -22,7 +22,7 @@ Instead, I think I want to stick with WSGI over ASGI.
 ## Architecture
 
 - A C-based server should load a callable using a Gunicorn style
-  of `module.path:application` and default to `application` being the callable
+  of `module.path:app` and default to `app` being the callable
   so that `module.path` can be used.
 - Ideally, the server should have a pool of workers that can receive data
   from an accepted socket.
