@@ -32,3 +32,26 @@ that frameworks can use to imperatively write data via that function.
 The specification states that it only exists to serve legacy Python frameworks.
 Because Nibiru is not bound by any legacy Lua frameworks,
 I am choosing to skip that portion of the interface.
+
+### Iterable
+
+Lua's ideas around iterables and the protocol are not super clear to me.
+I'm not sure if I can make an iterator function that would work for any context.
+Maybe I can, but I'm going to punt
+and assume that the application returns an `ipairs` iterator on a table.
+
+The implication of this is that connection handler will have to deal
+with an index value that we don't care about.
+Ideally, I want the connection handler to work like:
+
+```lua
+local iterator = application(environ, start_response)
+-- Handle data related to start_response call, then...
+for chunk in iterator do
+  -- Do stuff with chunk to send over network immediately.
+  print(chunk)
+end
+```
+
+By constraining to tables and ipairs, the implementation isn't as flexible
+as it should be for custom iterators, but that's ok for now.

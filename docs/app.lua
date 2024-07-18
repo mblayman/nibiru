@@ -5,7 +5,7 @@
 -- TODO: switch this to using an iterable table of data
 local function app(environ, start_response)
     print("In Lua application function")
-    return "HTTP/1.1 200 OK\r\n\r\n"
+    return ipairs({ "HTTP/1.1 ", "200 OK", "\r\n\r\n" })
 end
 
 return { app = app }
