@@ -11,6 +11,9 @@ build:
 run: build
 	./nibiru docs.app:app
 
+deps:
+	luarocks --tree .luarocks install luatest
+
 format:
 	clang-format -i src/**.c
 
