@@ -1,0 +1,24 @@
+---@class Application
+local Application = {}
+Application.__index = Application
+
+--- Create an app instance that serves as the WSGI callable.
+--- @param _ any
+--- @return Application
+local function _init(_)
+    local self = setmetatable({}, Application)
+    return self
+end
+
+--- Handle requests from a server, according to the WSGI interface.
+--- @param self Application
+--- @param environ table The input request data
+--- @param start_response function The callable to invoke before returning data
+function Application.__call(self, environ, start_response)
+    -- TODO: application needs to call start_response
+    print("In Lua application callable")
+    return ipairs({ "HTTP/1.1 ", "200 OK", "\r\n\r\n" })
+end
+
+setmetatable(Application, { __call = _init })
+return Application

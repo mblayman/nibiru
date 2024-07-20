@@ -43,6 +43,35 @@ int nibiru_load_registered_lua_function(lua_State *lua_state,
     return function_reference;
 }
 
+/**
+ * Check that the value at the top of the Lua stack is callable.
+ * @param lua_state The Lua state object
+ * @return 1 if callable else 0
+ */
+int is_callable(lua_State *lua_state) {
+    int status = lua_isfunction(lua_state, -1);
+    if (status == 1) {
+        return 1;
+    }
+
+    if (lua_istable(lua_state, -1) || lua_isuserdata(lua_state, -1)) {
+        if (lua_getmetatable(lua_state, -1)) {
+            lua_pushstring(lua_state, "__call");
+            lua_rawget(lua_state, -2);
+
+            // Check if the __call field is a function
+            int is_callable = lua_isfunction(lua_state, -1);
+
+            // Pop the __call field and the metatable from the stack
+            lua_pop(lua_state, 2);
+
+            return is_callable;
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     /*
      * Process arguments.
@@ -84,9 +113,9 @@ int main(int argc, char *argv[]) {
         lua_close(lua_state);
         return 1;
     }
-    status = lua_isfunction(lua_state, -1);
+    status = is_callable(lua_state);
     if (status == 0) {
-        printf("`%s` is not a valid function.\n", app_name);
+        printf("`%s` is not a valid callable.\n", app_name);
         lua_close(lua_state);
         return 1;
     }
