@@ -13,6 +13,9 @@ build:
 run: build
 	./nibiru docs.app:app
 
+clean:
+	rm -rf out nibiru
+
 deps:
 	luarocks --tree .luarocks install luatest
 
@@ -22,7 +25,6 @@ format:
 req:
 	@printf 'GET /\n\n' | nc 127.0.0.1 8080
 
-docs:
-	rm -rf out
+docs: clean
 	mkdir out
 	~/.local/share/nvim/mason/bin/lua-language-server --doc lua/nibiru --doc_out_path out

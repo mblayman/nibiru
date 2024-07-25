@@ -1,4 +1,4 @@
----@class Application
+--- @class Application
 local Application = {}
 Application.__index = Application
 
@@ -9,6 +9,7 @@ local function _init(_)
     local self = setmetatable({}, Application)
     return self
 end
+setmetatable(Application, { __call = _init })
 
 --- Handle requests from a server, according to the WSGI interface.
 --- @param self Application
@@ -20,5 +21,4 @@ function Application.__call(self, environ, start_response)
     return ipairs({ "HTTP/1.1 ", "200 OK", "\r\n\r\n" })
 end
 
-setmetatable(Application, { __call = _init })
 return Application

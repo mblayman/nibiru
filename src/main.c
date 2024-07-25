@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
 
     // Load the bootstrap module to get the WSGI callable.
     int bootstrap_reference = nibiru_load_registered_lua_function(
-        lua_state, "nibiru.boot", "bootstrap");
+        lua_state, "nibiru.server.boot", "bootstrap");
     if (bootstrap_reference == -1) {
         return 1;
     }
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
 
     // Load the connection handler.
     int handle_connection_reference = nibiru_load_registered_lua_function(
-        lua_state, "nibiru.connector", "handle_connection");
+        lua_state, "nibiru.server.connector", "handle_connection");
     if (handle_connection_reference == -1) {
         return 1;
     }
