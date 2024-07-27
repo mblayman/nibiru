@@ -55,3 +55,27 @@ end
 
 By constraining to tables and ipairs, the implementation isn't as flexible
 as it should be for custom iterators, but that's ok for now.
+
+### `response_headers`
+
+The WSGI specification expects `response_headers` to be of type `list[tuple[str, str]]`.
+In that structure, each tuple pair is a header name and header value.
+Repeated headers like `Set-Cookie` would appear as separate tuples.
+
+Instead, the Lua implementation will expect `{header_name = {value_1, value2}}`.
+For instance, rather than:
+
+```python
+response_headers = [
+    ("Set-Cookie", "sessionid=abc123"),
+    ("Set-Cookie", "theme=light"),
+]
+```
+
+Lua will behave like:
+
+```lua
+local response_headers = {
+    ["Set-Cookie"] = {"sessionid=abc123", "theme=light"}
+}
+```
