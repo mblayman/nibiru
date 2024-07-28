@@ -11,15 +11,22 @@ end
 
 -- The app behaves like a WSGI callable.
 function tests.test_app_is_wsgi_callable()
+    local start_response_called = false
+    local actual_status = ""
+    local actual_response_headers = nil
     local environ = { hello = "world" }
-    -- TODO: capture status and response_headers
-    local start_response = function(status, response_headers) end
+    local start_response = function(status, response_headers)
+        start_response_called = true
+        actual_status = status
+        actual_response_headers = response_headers
+    end
     local app = Application()
-    print(app)
 
     app(environ, start_response)
 
-    -- TODO: assert some stuff.
+    assert.is_true(start_response_called)
+    assert.equal(actual_status, "200 OK")
+    assert.same(actual_response_headers, {})
 end
 
 return tests

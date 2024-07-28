@@ -1,4 +1,24 @@
-local connector = {}
+--- @class connector
+--- @field status string HTTP status with Status-Code and Reason-Phrase
+--- @field response_headers table Storage for the response headers
+local connector = {
+    status = "",
+    response_headers = {},
+}
+
+--- Record information about the response.
+---
+--- This is the callable passed to the WSGI application. It is connected
+--- to the module to avoid creating a closure for every request.
+--- This design prevents start_response from being reentrant, but since I'm
+--- designing this module to only be called by a single process at a time,
+--- that should be fine.
+--- @param status string HTTP status like "200 OK" or "404 Not Found"
+--- @param response_headers table Any response headers
+function connector.start_response(status, response_headers)
+    connector.status = status
+    connector.response_headers = response_headers
+end
 
 --- Handle data received on the network connection.
 ---
@@ -9,10 +29,6 @@ function connector.handle_connection(application, data)
     -- TODO: parse inbound data into the environ table
     print(data)
     local environ = {}
-    local start_response = function(status, response_headers)
-        print(status)
-        print(response_headers)
-    end
 
     -- TODO: The application callable returns an iterable. The spec says that
     -- this data should not be buffered and should be sent immediately, but I'm
@@ -21,17 +37,18 @@ function connector.handle_connection(application, data)
     -- When I do get to this level, it appears that the way to handle the
     -- Content-Length for iterables is to use `Transfer-Encoding: chunked`
     -- which doesn't require a known content length.
-    local response = ""
+    local response = { "HTTP/1.1 " }
 
     -- This code is assuming that application is returning the elements
     -- that would come from a call to ipairs.
-    local response_iterator, state, initial = application(environ, start_response)
-    -- TODO: Handle start_response data here.
-    -- To avoid creating a closure function with every request, start_response
-    -- could be a function attached to the module and write to module state.
-    -- This would prevent start_response from being reentrant, but since I'm
-    -- designing this module to only be called by a single process at a time,
-    -- that should be fine.
+    local response_iterator, state, initial =
+        application(environ, connector.start_response)
+
+    table.insert(response, connector.status)
+    table.insert(response, "\r\n")
+
+    -- TODO: handle response_headers serialization
+    table.insert(response, "\r\n")
 
     -- TODO: if the application doesn't provide Content-Length, then special
     -- code will be needed to tack on that header before appending the content
@@ -39,9 +56,9 @@ function connector.handle_connection(application, data)
     -- without buffering the response.
 
     for _, chunk in response_iterator, state, initial do
-        response = response .. chunk
+        table.insert(response, chunk)
     end
-    return response
+    return table.concat(response)
 end
 
 return connector
