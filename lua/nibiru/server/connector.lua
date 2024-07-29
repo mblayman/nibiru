@@ -28,7 +28,26 @@ end
 function connector.handle_connection(application, data)
     -- TODO: parse inbound data into the environ table
     print(data)
-    local environ = {}
+    local environ = {
+        REQUEST_METHOD = "GET",
+        SCRIPT_NAME = "",
+        PATH_INFO = "/",
+        -- QUERY_STRING
+        -- CONTENT_TYPE
+        -- CONTENT_LENGTH
+        SERVER_NAME = "localhost",
+        SERVER_PORT = "8080",
+        SERVER_PROTOCOL = "HTTP/1.1",
+        -- `HTTP_` Variables
+        ["wsgi.version"] = { 1, 0 },
+        ["wsgi.url_scheme"] = "http",
+        -- wsgi.input
+        -- wsgi.errors
+        ["wsgi.multithread"] = false,
+        ["wsgi.multiprocess"] = true,
+        ["wsgi.run_once"] = false,
+        -- nibiru.example_variable
+    }
 
     -- TODO: The application callable returns an iterable. The spec says that
     -- this data should not be buffered and should be sent immediately, but I'm
