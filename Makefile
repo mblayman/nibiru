@@ -23,7 +23,7 @@ format:
 	clang-format -i src/**.c
 
 req:
-	@printf 'GET /\n\n' | nc 127.0.0.1 8080
+	@printf 'GET / HTTP/1.1\r\n\r\n' | nc 127.0.0.1 8080
 
 docs: clean
 	mkdir out
