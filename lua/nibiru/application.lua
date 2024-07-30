@@ -16,7 +16,6 @@ setmetatable(Application, { __call = _init })
 --- @param environ table The input request data
 --- @param start_response function The callable to invoke before returning data
 function Application.__call(self, environ, start_response)
-    print("In Lua application callable")
     start_response("200 OK", {})
     return ipairs({ "hello world" })
 end
