@@ -26,10 +26,20 @@ local function _init(_, path, controller, methods)
     local self = setmetatable({}, Route)
     self.path = path
     self.controller = controller
-    self.methods = methods or { "GET" }
+
+    -- Use a lookup table for allowed methods for faster checking at runtime.
+    if methods then
+        local methods_lookup = {}
+        for _, method in ipairs(methods) do
+            methods_lookup[method] = true
+        end
+        self.methods = methods_lookup
+    else
+        self.methods = { GET = true }
+    end
+
     return self
 end
-
 setmetatable(Route, { __call = _init })
 
 return Route
