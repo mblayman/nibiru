@@ -6,7 +6,7 @@ local tests = {}
 function tests.test_constructor()
     local app = Application()
 
-    assert.equal(getmetatable(app), Application)
+    assert.equal(Application, getmetatable(app))
 end
 
 -- The app behaves like a WSGI callable.
@@ -25,8 +25,8 @@ function tests.test_app_is_wsgi_callable()
     app(environ, start_response)
 
     assert.is_true(start_response_called)
-    assert.equal(actual_status, "200 OK")
-    assert.same(actual_response_headers, {})
+    assert.equal("200 OK", actual_status)
+    assert.same({}, actual_response_headers)
 end
 
 return tests
