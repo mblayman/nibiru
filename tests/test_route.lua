@@ -34,4 +34,40 @@ function tests.test_allowed_methods()
     -- assert.equal(Route.MATCH, route:matches("POST", "/"))
 end
 
+-- Route generates path pattern with no parameter.
+function tests.test_no_parameter_pattern()
+    local controller = function() end
+    local route = Route("/users", controller)
+
+    assert.equal("^/users$", route.path_pattern)
+    assert.same({}, route.converters)
+end
+
+-- Route generates path pattern with one parameter.
+function tests.test_one_parameter_pattern()
+    local controller = function() end
+    local route = Route("/users/{id:integer}", controller)
+
+    assert.equal("^/users/([%d]*)$", route.path_pattern)
+    assert.same({ "integer" }, route.converters)
+end
+
+-- Route generates path pattern with multiple parameters.
+function tests.test_multiple_parameters_pattern()
+    local controller = function() end
+    local route = Route("/users/{username:string}/posts/{id:integer}", controller)
+
+    assert.equal("^/users/([^/]*)/posts/([%d]*)$", route.path_pattern)
+    assert.same({ "string", "integer" }, route.converters)
+end
+
+-- Route fails with an unknown converter.
+function tests.test_unknown_converter()
+    local controller = function() end
+    local status, message = pcall(Route, "/users/{id:nope}", controller)
+
+    assert.is_false(status)
+    assert.is_not_nil(string.find(message, "Unknown converter type: nope", 1, true))
+end
+
 return tests
