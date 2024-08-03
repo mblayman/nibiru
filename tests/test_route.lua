@@ -23,4 +23,15 @@ function tests.test_optional_methods()
     assert.same({ GET = true }, route.methods)
 end
 
+-- Only allowed methods can match.
+function tests.test_allowed_methods()
+    local methods = { "GET", "POST" }
+    local route = Route("/", function() end, methods)
+
+    assert.equal(Route.NOT_ALLOWED, route:matches("DELETE", "/"))
+    -- TODO: enable asserts when path matching works
+    -- assert.equal(Route.MATCH, route:matches("GET", "/"))
+    -- assert.equal(Route.MATCH, route:matches("POST", "/"))
+end
+
 return tests
