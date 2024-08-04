@@ -6,6 +6,7 @@ local method_not_allowed = http.method_not_allowed()
 
 --- @class Application
 --- @field routes Route[]
+--- @field app Application An alias for the application
 local Application = {}
 Application.__index = Application
 
@@ -15,6 +16,11 @@ Application.__index = Application
 local function _init(_, routes)
     local self = setmetatable({}, Application)
     self.routes = routes or {}
+
+    -- By keeping a reference to itself as `app`, a real project can simplify
+    -- how it provides the nibiru server with the application instance.
+    self.app = self
+
     return self
 end
 setmetatable(Application, { __call = _init })

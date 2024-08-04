@@ -9,6 +9,7 @@ function tests.test_constructor()
     local app = Application()
 
     assert.equal(Application, getmetatable(app))
+    assert.equal(app, app.app)
 end
 
 -- The app behaves like a WSGI callable.
