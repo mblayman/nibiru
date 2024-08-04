@@ -15,12 +15,12 @@ local NOT_ALLOWED = 2
 --- @alias Match `NO_MATCH` | `MATCH` | `NOT_ALLOWED`
 
 -- Converter type is not optional!
-local PARAMETER_PATTERN = "{([a-zA-Z_][a-zA-Z0-9_]*)(:[a-zA-Z_][a-zA-Z0-9_]*)}"
+local PARAMETER_PATTERN = "<([a-zA-Z_][a-zA-Z0-9_]*)(:[a-zA-Z_][a-zA-Z0-9_]*)>"
 
 local CONVERTER_PATTERNS = {
     -- string should include any character except a slash.
-    string = "([^/]*)",
-    integer = "([%d]*)",
+    string = "([^/]+)",
+    integer = "([%d]+)",
 }
 
 --- Make a pattern that corresponds to path.
@@ -111,12 +111,14 @@ setmetatable(Route, { __call = _init })
 --- @param path string
 --- @return Match
 function Route.matches(self, method, path)
-    -- TODO: check the path against a constructed pattern.
+    if not string.match(path, self.path_pattern) then
+        return NO_MATCH
+    end
 
     if self.methods[method] then
-        return self.MATCH
+        return MATCH
     else
-        return self.NOT_ALLOWED
+        return NOT_ALLOWED
     end
 end
 
