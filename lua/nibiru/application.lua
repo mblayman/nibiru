@@ -37,6 +37,7 @@ function Application.__call(self, environ, start_response)
     -- TODO: handle an unknown status
     local status = http.statuses[response.status_code]
 
+    -- TODO: handle response headers
     start_response(status, {})
     return ipairs({ response.content })
 end

@@ -45,7 +45,7 @@ end
 
 -- String paths match.
 function tests.test_string_path()
-    local route = Route("/users/<username:string>", function() end)
+    local route = Route("/users/{username:string}", function() end)
 
     assert.equal(Route.MATCH, route:matches("GET", "/users/matt"))
     assert.equal(Route.MATCH, route:matches("GET", "/users/42"))
@@ -55,7 +55,7 @@ end
 
 -- Integer paths match.
 function tests.test_integer_path()
-    local route = Route("/users/<id:integer>", function() end)
+    local route = Route("/users/{id:integer}", function() end)
 
     assert.equal(Route.MATCH, route:matches("GET", "/users/42"))
     assert.equal(Route.NO_MATCH, route:matches("GET", "/users/matt"))
@@ -65,7 +65,7 @@ end
 
 -- Multiple parameters match.
 function tests.test_multiple_parameters()
-    local route = Route("/users/<username:string>/posts/<id:integer>", function() end)
+    local route = Route("/users/{username:string}/posts/{id:integer}", function() end)
 
     assert.equal(Route.MATCH, route:matches("GET", "/users/matt/posts/42"))
     assert.equal(Route.NO_MATCH, route:matches("GET", "/users/matt/posts/other"))
@@ -84,7 +84,7 @@ end
 -- Route generates path pattern with one parameter.
 function tests.test_one_parameter_pattern()
     local controller = function() end
-    local route = Route("/users/<id:integer>", controller)
+    local route = Route("/users/{id:integer}", controller)
 
     assert.equal("^/users/([%d]+)$", route.path_pattern)
     assert.same({ "integer" }, route.converters)
@@ -93,7 +93,7 @@ end
 -- Route generates path pattern with multiple parameters.
 function tests.test_multiple_parameters_pattern()
     local controller = function() end
-    local route = Route("/users/<username:string>/posts/<id:integer>", controller)
+    local route = Route("/users/{username:string}/posts/{id:integer}", controller)
 
     assert.equal("^/users/([^/]+)/posts/([%d]+)$", route.path_pattern)
     assert.same({ "string", "integer" }, route.converters)
@@ -103,7 +103,7 @@ end
 function tests.test_unknown_converter()
     local controller = function() end
     local status, msg = pcall(function()
-        Route("/users/<id:nope>", controller)
+        Route("/users/{id:nope}", controller)
     end)
 
     assert.is_false(status)
@@ -117,7 +117,7 @@ function tests.test_run()
         actual_request, actual_username, actual_id = request, username, id
         return http.ok()
     end
-    local route = Route("/users/<username:string>/posts/<id:integer>", controller)
+    local route = Route("/users/{username:string}/posts/{id:integer}", controller)
     local request = http.get("/users/matt/posts/42")
 
     local response = route:run(request)

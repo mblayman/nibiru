@@ -15,7 +15,7 @@ local NOT_ALLOWED = 2
 --- @alias Match `NO_MATCH` | `MATCH` | `NOT_ALLOWED`
 
 -- Converter type is not optional!
-local PARAMETER_PATTERN = "<([a-zA-Z_][a-zA-Z0-9_]*)(:[a-zA-Z_][a-zA-Z0-9_]*)>"
+local PARAMETER_PATTERN = "{([a-zA-Z_][a-zA-Z0-9_]*)(:[a-zA-Z_][a-zA-Z0-9_]*)}"
 
 local CONVERTER_PATTERNS = {
     -- string should include any character except a slash.
