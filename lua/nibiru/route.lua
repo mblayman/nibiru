@@ -107,8 +107,8 @@ end
 setmetatable(Route, { __call = _init })
 
 --- Check if the route matches a method and path.
---- @param method Method
---- @param path string
+--- @param method Method The HTTP method in the request
+--- @param path string The path of the request
 --- @return Match
 function Route.matches(self, method, path)
     if not string.match(path, self.path_pattern) then
