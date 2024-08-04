@@ -59,4 +59,42 @@ function tests.test_ok()
     assert.same({ hello = "world" }, response.headers)
 end
 
+-- not_found is a shortcut to create a 404 response.
+function tests.test_not_found()
+    local response = http.not_found("nope", "text/plain", { hello = "world" })
+
+    assert.equal(404, response.status_code)
+    assert.equal("nope", response.content)
+    assert.equal("text/plain", response.content_type)
+    assert.same({ hello = "world" }, response.headers)
+end
+
+-- not_found has decent defaults.
+function tests.test_not_found_no_arguments()
+    local response = http.not_found()
+
+    assert.equal(404, response.status_code)
+    assert.equal("Not Found", response.content)
+    assert.equal("text/html", response.content_type)
+end
+
+-- method_not_allowed is a shortcut to create a 404 response.
+function tests.test_method_not_allowed()
+    local response = http.method_not_allowed("nope", "text/plain", { hello = "world" })
+
+    assert.equal(405, response.status_code)
+    assert.equal("nope", response.content)
+    assert.equal("text/plain", response.content_type)
+    assert.same({ hello = "world" }, response.headers)
+end
+
+-- method_not_allowed has decent defaults.
+function tests.test_method_not_allowed_no_arguments()
+    local response = http.method_not_allowed()
+
+    assert.equal(405, response.status_code)
+    assert.equal("Method Not Allowed", response.content)
+    assert.equal("text/html", response.content_type)
+end
+
 return tests

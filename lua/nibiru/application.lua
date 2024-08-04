@@ -1,4 +1,8 @@
+local http = require("nibiru.http")
 local Route = require("nibiru.route")
+
+local not_found = http.not_found()
+local method_not_allowed = http.method_not_allowed()
 
 --- @class Application
 --- @field routes Route[]
@@ -20,8 +24,21 @@ setmetatable(Application, { __call = _init })
 --- @param environ table The input request data
 --- @param start_response function The callable to invoke before returning data
 function Application.__call(self, environ, start_response)
-    start_response("200 OK", {})
-    return ipairs({ "hello world" })
+    local match, route = self:find_route(environ.REQUEST_METHOD, environ.PATH_INFO)
+
+    local response = not_found
+    if match == Route.MATCH and route then
+        local request = http.Request(environ.REQUEST_METHOD, environ.PATH_INFO)
+        response = route:run(request)
+    elseif match == Route.NOT_ALLOWED then
+        response = method_not_allowed
+    end
+
+    -- TODO: handle an unknown status
+    local status = http.statuses[response.status_code]
+
+    start_response(status, {})
+    return ipairs({ response.content })
 end
 
 --- Find a matching route for the HTTP request.

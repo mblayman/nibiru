@@ -1,5 +1,6 @@
 local assert = require("luassert")
 local Application = require("nibiru.application")
+local http = require("nibiru.http")
 local Route = require("nibiru.route")
 
 local tests = {}
@@ -15,13 +16,15 @@ function tests.test_app_is_wsgi_callable()
     local start_response_called = false
     local actual_status = ""
     local actual_response_headers = nil
-    local environ = { hello = "world" }
+    local environ = { REQUEST_METHOD = "GET", PATH_INFO = "/" }
     local start_response = function(status, response_headers)
         start_response_called = true
         actual_status = status
         actual_response_headers = response_headers
     end
-    local app = Application()
+    local app = Application({ Route("/", function()
+        return http.ok()
+    end) })
 
     app(environ, start_response)
 
