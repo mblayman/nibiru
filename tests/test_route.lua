@@ -1,4 +1,5 @@
 local assert = require("luassert")
+local http = require("nibiru.http")
 local Route = require("nibiru.route")
 
 local tests = {}
@@ -101,10 +102,30 @@ end
 -- Route fails with an unknown converter.
 function tests.test_unknown_converter()
     local controller = function() end
-    local status, message = pcall(Route, "/users/<id:nope>", controller)
+    local status, msg = pcall(function()
+        Route("/users/<id:nope>", controller)
+    end)
 
     assert.is_false(status)
-    assert.is_not_nil(string.find(message, "Unknown converter type: nope", 1, true))
+    assert.is_not_nil(string.find(msg or "", "Unknown converter type: nope", 1, true))
+end
+
+-- Route run sends correct parameters and returns a response.
+function tests.test_run()
+    local actual_request, actual_username, actual_id
+    local controller = function(request, username, id)
+        actual_request, actual_username, actual_id = request, username, id
+        return http.ok()
+    end
+    local route = Route("/users/<username:string>/posts/<id:integer>", controller)
+    local request = http.get("/users/matt/posts/42")
+
+    local response = route:run(request)
+
+    assert.equal(200, response.status_code)
+    assert.equal(request, actual_request)
+    assert.equal("matt", actual_username)
+    assert.equal(42, actual_id)
 end
 
 return tests

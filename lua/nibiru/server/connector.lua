@@ -27,6 +27,7 @@ end
 --- @return string response The outbound data to send on the connection
 function connector.handle_connection(application, data)
     -- TODO: parse inbound data into the environ table
+    -- TODO: Validate that the request method is an acceptable HTTP method.
     print(data)
     local environ = {
         REQUEST_METHOD = "GET",

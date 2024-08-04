@@ -3,6 +3,30 @@ local http = require("nibiru.http")
 
 local tests = {}
 
+-- A request has defaults.
+function tests.test_request()
+    local request = http.Request()
+
+    assert.equal("GET", request.method)
+    assert.equal("", request.path)
+end
+
+-- A request holds the supplied arguments.
+function tests.test_request_with_arguments()
+    local request = http.Request("POST", "/users")
+
+    assert.equal("POST", request.method)
+    assert.equal("/users", request.path)
+end
+
+-- get is a shortcut to create a GET request.
+function tests.test_get()
+    local request = http.get("/users")
+
+    assert.equal("GET", request.method)
+    assert.equal("/users", request.path)
+end
+
 -- A response has defaults of an empty 200 OK.
 function tests.test_response()
     local response = http.Response()
@@ -14,8 +38,8 @@ function tests.test_response()
     assert.same({}, response.headers)
 end
 
--- A response holds the supplied values.
-function tests.test_response_with_values()
+-- A response holds the supplied arguments.
+function tests.test_response_with_arguments()
     local response =
         http.Response(404, "Page not found", "text/plain", { hello = "world" })
 

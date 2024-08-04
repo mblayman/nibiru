@@ -22,6 +22,7 @@ local CONVERTER_PATTERNS = {
     string = "([^/]+)",
     integer = "([%d]+)",
 }
+local CONVERTER_TRANSFORMS = { integer = math.tointeger }
 
 --- Make a pattern that corresponds to path.
 ---
@@ -120,6 +121,27 @@ function Route.matches(self, method, path)
     else
         return NOT_ALLOWED
     end
+end
+
+---Run a route by preparing parameters and invoking the controller.
+---@param self Route
+---@param request Request
+---@return Response
+function Route.run(self, request)
+    local raw_parameters = table.pack(string.match(request.path, self.path_pattern))
+
+    local transformer
+    local parameters = {}
+    for i, converter_type in ipairs(self.converters) do
+        transformer = CONVERTER_TRANSFORMS[converter_type]
+        if transformer then
+            table.insert(parameters, transformer(raw_parameters[i]))
+        else
+            table.insert(parameters, raw_parameters[i])
+        end
+    end
+
+    return self.controller(request, table.unpack(parameters))
 end
 
 return Route
