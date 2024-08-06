@@ -181,7 +181,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    int backlog = 32; // `man 2 listen` says max is 128.
+    int backlog = 128; // `man 2 listen` says max is 128.
     status = listen(listen_socket_fd, backlog);
     if (status == -1) {
         close(listen_socket_fd);
