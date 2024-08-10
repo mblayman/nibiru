@@ -1,3 +1,6 @@
+local parser = require("nibiru.server.http_parser")
+local ParserErrors = parser.ParserErrors
+
 --- @class connector
 --- @field status string HTTP status with Status-Code and Reason-Phrase
 --- @field response_headers table Storage for the response headers
@@ -26,29 +29,17 @@ end
 --- @param data string The inbound data received on the network connection
 --- @return string response The outbound data to send on the connection
 function connector.handle_connection(application, data)
-    -- TODO: parse inbound data into the environ table
-    -- TODO: Validate that the request method is an acceptable HTTP method.
-    print(data)
-    local environ = {
-        REQUEST_METHOD = "GET",
-        SCRIPT_NAME = "",
-        PATH_INFO = "/",
-        -- QUERY_STRING
-        -- CONTENT_TYPE
-        -- CONTENT_LENGTH
-        SERVER_NAME = "localhost",
-        SERVER_PORT = "8080",
-        SERVER_PROTOCOL = "HTTP/1.1",
-        -- `HTTP_` Variables
-        ["wsgi.version"] = { 1, 0 },
-        ["wsgi.url_scheme"] = "http",
-        -- wsgi.input
-        -- wsgi.errors
-        ["wsgi.multithread"] = false,
-        ["wsgi.multiprocess"] = true,
-        ["wsgi.run_once"] = false,
-        -- nibiru.example_variable
-    }
+    local environ, err = parser.parse(data)
+
+    if err then
+        if err == ParserErrors.INVALID_REQUEST_LINE then
+            return "HTTP/1.1 400 Bad Request\r\n\r\n"
+        elseif err == ParserErrors.VERSION_NOT_SUPPORTED then
+            return "HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n"
+        elseif err == ParserErrors.METHOD_NOT_IMPLEMENTED then
+            return "HTTP/1.1 501 Not Implemented\r\n\r\n"
+        end
+    end
 
     -- TODO: The application callable returns an iterable. The spec says that
     -- this data should not be buffered and should be sent immediately, but I'm
@@ -57,15 +48,13 @@ function connector.handle_connection(application, data)
     -- When I do get to this level, it appears that the way to handle the
     -- Content-Length for iterables is to use `Transfer-Encoding: chunked`
     -- which doesn't require a known content length.
-    local response = { "HTTP/1.1 " }
 
     -- This code is assuming that application is returning the elements
     -- that would come from a call to ipairs.
     local response_iterator, state, initial =
         application(environ, connector.start_response)
 
-    table.insert(response, connector.status)
-    table.insert(response, "\r\n")
+    local response = { "HTTP/1.1 ", connector.status, "\r\n" }
 
     -- TODO: handle response_headers serialization
     table.insert(response, "\r\n")

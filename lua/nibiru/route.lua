@@ -1,14 +1,3 @@
---- @alias Method
---- | '"GET"'
---- | '"HEAD"'
---- | '"POST"'
---- | '"PUT"'
---- | '"DELETE"'
---- | '"CONNECT"'
---- | '"OPTIONS"'
---- | '"TRACE"'
---- | '"PATCH"'
-
 local NO_MATCH = 0
 local MATCH = 1
 local NOT_ALLOWED = 2
