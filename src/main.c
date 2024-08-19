@@ -8,6 +8,15 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+struct WorkerState {
+    // The local Lua interpreter
+    lua_State *lua_state;
+    // The WSGI application callable
+    int application_reference;
+    // The connection handler within nibiru's Lua code
+    int handle_connection_reference;
+};
+
 /**
  * Load a Lua module and store a specified module function into the Lua
  * registry.
@@ -24,14 +33,12 @@ int nibiru_load_registered_lua_function(lua_State *lua_state,
     int status = lua_pcall(lua_state, 1, 1, 0);
     if (status != LUA_OK) {
         printf("Error: %s\n", lua_tostring(lua_state, -1));
-        lua_close(lua_state);
         return -1;
     }
 
     int lua_type = lua_getfield(lua_state, -1, function_name);
     if (lua_type != LUA_TFUNCTION) {
         printf("Unexpected type: %s is not a function.", function_name);
-        lua_close(lua_state);
         return -1;
     }
 
@@ -72,6 +79,55 @@ int is_callable(lua_State *lua_state) {
     return 0;
 }
 
+int initialize_worker(struct WorkerState *worker, const char* app_module, const char *app_name) {
+    worker->lua_state = NULL;
+    worker->application_reference = 0;
+    worker->handle_connection_reference = 0;
+
+    int status;
+
+    worker->lua_state = luaL_newstate();
+    luaL_openlibs(worker->lua_state);
+
+    // Load the bootstrap module to get the WSGI callable.
+    int bootstrap_reference = nibiru_load_registered_lua_function(
+        worker->lua_state, "nibiru.server.boot", "bootstrap");
+    if (bootstrap_reference == -1) {
+        return 1;
+    }
+
+    lua_rawgeti(worker->lua_state, LUA_REGISTRYINDEX, bootstrap_reference);
+    lua_pushstring(worker->lua_state, app_module);
+    lua_pushstring(worker->lua_state, app_name);
+    status = lua_pcall(worker->lua_state, 2, 1, 0);
+    if (status != LUA_OK) {
+        printf("Error: %s\n", lua_tostring(worker->lua_state, -1));
+        return 1;
+    }
+    status = is_callable(worker->lua_state);
+    if (status == 0) {
+        printf("`%s` is not a valid callable.\n", app_name);
+        return 1;
+    }
+    worker->application_reference = luaL_ref(worker->lua_state, LUA_REGISTRYINDEX);
+
+    // Load the connection handler.
+    int handle_connection_reference = nibiru_load_registered_lua_function(
+        worker->lua_state, "nibiru.server.connector", "handle_connection");
+    if (handle_connection_reference == -1) {
+        return 1;
+    }
+    worker->handle_connection_reference = handle_connection_reference;
+
+    return 0;
+}
+
+void free_worker(struct WorkerState *worker) {
+    if (worker->lua_state != NULL) {
+        lua_close(worker->lua_state);
+    }
+}
+
 int main(int argc, char *argv[]) {
     /*
      * Process arguments.
@@ -79,11 +135,6 @@ int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("Expected app callable in format of: module.path:app\n");
         return 1;
-    }
-
-    char *port = "8080";
-    if (argc == 3) {
-        port = argv[2];
     }
 
     char *app_specifier = argv[1];
@@ -94,44 +145,58 @@ int main(int argc, char *argv[]) {
         app_name = "app";
     }
 
+    char *port = "8080";
+    if (argc == 3) {
+        port = argv[2];
+    }
+
     int status;
+
+    // TODO: Rename to preflight after forking is actually working.
+    // A preflight worker to validate that a valid application was specified.
+    struct WorkerState worker;
+    status = initialize_worker(&worker, app_module, app_name);
+    if (status != 0) {
+        free_worker(&worker);
+        return 1;
+    }
 
     /*
      * Initialize Lua.
      */
-    lua_State *lua_state = luaL_newstate();
-    luaL_openlibs(lua_state);
-
-    // Load the bootstrap module to get the WSGI callable.
-    int bootstrap_reference = nibiru_load_registered_lua_function(
-        lua_state, "nibiru.server.boot", "bootstrap");
-    if (bootstrap_reference == -1) {
-        return 1;
-    }
-
-    lua_rawgeti(lua_state, LUA_REGISTRYINDEX, bootstrap_reference);
-    lua_pushstring(lua_state, app_module);
-    lua_pushstring(lua_state, app_name);
-    status = lua_pcall(lua_state, 2, 1, 0);
-    if (status != LUA_OK) {
-        printf("Error: %s\n", lua_tostring(lua_state, -1));
-        lua_close(lua_state);
-        return 1;
-    }
-    status = is_callable(lua_state);
-    if (status == 0) {
-        printf("`%s` is not a valid callable.\n", app_name);
-        lua_close(lua_state);
-        return 1;
-    }
-    int application_reference = luaL_ref(lua_state, LUA_REGISTRYINDEX);
-
-    // Load the connection handler.
-    int handle_connection_reference = nibiru_load_registered_lua_function(
-        lua_state, "nibiru.server.connector", "handle_connection");
-    if (handle_connection_reference == -1) {
-        return 1;
-    }
+    // lua_State *lua_state = luaL_newstate();
+    // luaL_openlibs(lua_state);
+    //
+    // // Load the bootstrap module to get the WSGI callable.
+    // int bootstrap_reference = nibiru_load_registered_lua_function(
+    //     lua_state, "nibiru.server.boot", "bootstrap");
+    // if (bootstrap_reference == -1) {
+    //     return 1;
+    // }
+    //
+    // lua_rawgeti(lua_state, LUA_REGISTRYINDEX, bootstrap_reference);
+    // lua_pushstring(lua_state, app_module);
+    // lua_pushstring(lua_state, app_name);
+    // status = lua_pcall(lua_state, 2, 1, 0);
+    // if (status != LUA_OK) {
+    //     printf("Error: %s\n", lua_tostring(lua_state, -1));
+    //     lua_close(lua_state);
+    //     return 1;
+    // }
+    // status = is_callable(lua_state);
+    // if (status == 0) {
+    //     printf("`%s` is not a valid callable.\n", app_name);
+    //     lua_close(lua_state);
+    //     return 1;
+    // }
+    // int application_reference = luaL_ref(lua_state, LUA_REGISTRYINDEX);
+    //
+    // // Load the connection handler.
+    // int handle_connection_reference = nibiru_load_registered_lua_function(
+    //     lua_state, "nibiru.server.connector", "handle_connection");
+    // if (handle_connection_reference == -1) {
+    //     return 1;
+    // }
 
     /*
      * Start network connections.
@@ -225,20 +290,20 @@ int main(int argc, char *argv[]) {
         }
 
         // Add handle_connection back to the Lua stack.
-        lua_rawgeti(lua_state, LUA_REGISTRYINDEX, handle_connection_reference);
+        lua_rawgeti(worker.lua_state, LUA_REGISTRYINDEX, worker.handle_connection_reference);
 
-        lua_rawgeti(lua_state, LUA_REGISTRYINDEX, application_reference);
-        lua_pushstring(lua_state, receive_buffer);
+        lua_rawgeti(worker.lua_state, LUA_REGISTRYINDEX, worker.application_reference);
+        lua_pushstring(worker.lua_state, receive_buffer);
 
-        status = lua_pcall(lua_state, 2, 1, 0);
+        status = lua_pcall(worker.lua_state, 2, 1, 0);
         if (status != LUA_OK) {
-            printf("Error: %s\n", lua_tostring(lua_state, -1));
-            lua_close(lua_state);
+            printf("Error: %s\n", lua_tostring(worker.lua_state, -1));
+            free_worker(&worker);
             return 1;
         }
 
         size_t response_length;
-        const char *response = lua_tolstring(lua_state, -1, &response_length);
+        const char *response = lua_tolstring(worker.lua_state, -1, &response_length);
 
         // printf("%s\n", response);
         // printf("%zu\n", response_length);
@@ -249,13 +314,13 @@ int main(int argc, char *argv[]) {
 
         // Only pop after C has the chance to do something. If popped early,
         // there is a chance that the Lua GC kicks in and frees the memory.
-        lua_pop(lua_state, 1);
+        lua_pop(worker.lua_state, 1);
 
         close(accepted_socket_fd);
     }
 
     close(listen_socket_fd);
-    lua_close(lua_state);
+    free_worker(&worker);
 
     return 0;
 }
