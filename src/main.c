@@ -81,6 +81,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    char *port = "8080";
+    if (argc == 3) {
+        port = argv[2];
+    }
+
     char *app_specifier = argv[1];
     char *app_module = strsep(&app_specifier, ":");
     char *app_name = strsep(&app_specifier, ":");
@@ -141,8 +146,7 @@ int main(int argc, char *argv[]) {
     hints.ai_family = AF_UNSPEC; // IPv4 or IPv6
     hints.ai_socktype = SOCK_STREAM;
 
-    // TODO: Listening port should be be configurable and not locked to 8080.
-    status = getaddrinfo(NULL, "8080", &hints, &server_info);
+    status = getaddrinfo(NULL, port, &hints, &server_info);
     if (status != 0) {
         fprintf(stderr, "Failed to get server information: %s\n",
                 gai_strerror(status));
@@ -189,8 +193,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    // TODO: make this message a format string.
-    printf("Listening on 8080...\n");
+    printf("Listening on %s...\n", port);
 
     // TODO: This should probably be much larger and configurable.
     int receive_buffer_size = 10000;
