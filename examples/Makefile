@@ -11,3 +11,6 @@ simp:
 
 lua:
 	cc $(CFLAGS) calllua.c -o calllua.out
+
+workers:
+	cc workers.c -o workers.out
