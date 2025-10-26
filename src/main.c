@@ -79,7 +79,8 @@ int is_callable(lua_State *lua_state) {
     return 0;
 }
 
-int initialize_worker(struct WorkerState *worker, const char* app_module, const char *app_name) {
+int initialize_worker(struct WorkerState *worker, const char *app_module,
+                      const char *app_name) {
     worker->lua_state = NULL;
     worker->application_reference = 0;
     worker->handle_connection_reference = 0;
@@ -109,7 +110,8 @@ int initialize_worker(struct WorkerState *worker, const char* app_module, const 
         printf("`%s` is not a valid callable.\n", app_name);
         return 1;
     }
-    worker->application_reference = luaL_ref(worker->lua_state, LUA_REGISTRYINDEX);
+    worker->application_reference =
+        luaL_ref(worker->lua_state, LUA_REGISTRYINDEX);
 
     // Load the connection handler.
     int handle_connection_reference = nibiru_load_registered_lua_function(
@@ -284,15 +286,20 @@ int main(int argc, char *argv[]) {
             recv(accepted_socket_fd, receive_buffer, receive_buffer_size, 0);
         if (bytes_received > 0) {
             // Add null to terminate the C string from Lua's point of view.
+            // TODO: There is probably a bug here. If the bytes received is
+            // exactly the same size as the buffer size, then setting at this
+            // address will write outside of the buffer's actual memory.
             receive_buffer[bytes_received] = '\0';
         } else {
             // TODO: 0 is closed connection, -1 is error. Handle those.
         }
 
         // Add handle_connection back to the Lua stack.
-        lua_rawgeti(worker.lua_state, LUA_REGISTRYINDEX, worker.handle_connection_reference);
+        lua_rawgeti(worker.lua_state, LUA_REGISTRYINDEX,
+                    worker.handle_connection_reference);
 
-        lua_rawgeti(worker.lua_state, LUA_REGISTRYINDEX, worker.application_reference);
+        lua_rawgeti(worker.lua_state, LUA_REGISTRYINDEX,
+                    worker.application_reference);
         lua_pushstring(worker.lua_state, receive_buffer);
 
         status = lua_pcall(worker.lua_state, 2, 1, 0);
@@ -303,7 +310,8 @@ int main(int argc, char *argv[]) {
         }
 
         size_t response_length;
-        const char *response = lua_tolstring(worker.lua_state, -1, &response_length);
+        const char *response =
+            lua_tolstring(worker.lua_state, -1, &response_length);
 
         // printf("%s\n", response);
         // printf("%zu\n", response_length);
