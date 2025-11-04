@@ -1,5 +1,6 @@
 -- nibiru/template.lua
 local Template = {}
+local Tokenizer = require("nibiru.tokenizer")
 
 local function escape_lua_string(s)
     -- Escape for Lua double-quoted string literal
@@ -7,46 +8,41 @@ local function escape_lua_string(s)
     return '"' .. s .. '"'
 end
 
+local function parse_expr(parser)
+    local tokens = parser.tokens
+    local token = tokens[parser.pos]
+    if token.type == "IDENTIFIER" then
+        parser.pos = parser.pos + 1
+        return token.value
+    else
+        error("Expected identifier in expression at position " .. parser.pos)
+    end
+end
+
 local function compile(template_str)
+    local tokens = Tokenizer.tokenize(template_str)
+    local parser = { tokens = tokens, pos = 1 }
     local chunks = {}
-    local pos = 1
-    local template_len = #template_str
 
-    while pos <= template_len do
-        local start, end_start = template_str:find("{{", pos)
-        if not start then
-            -- No more placeholders, add the remaining static text (if any)
-            local remaining = template_str:sub(pos)
-            if remaining ~= "" then
-                table.insert(chunks, escape_lua_string(remaining))
+    while parser.pos <= #tokens do
+        local token = tokens[parser.pos]
+        if token.type == "TEXT" then
+            table.insert(chunks, escape_lua_string(token.value))
+            parser.pos = parser.pos + 1
+        elseif token.type == "EXPR_START" then
+            parser.pos = parser.pos + 1
+            local var_name = parse_expr(parser)
+            if parser.pos > #tokens or tokens[parser.pos].type ~= "EXPR_END" then
+                error("Expected }} after expression")
             end
-            break
+            parser.pos = parser.pos + 1
+            -- Generate Lua code for safe table access and tostring conversion
+            table.insert(chunks, string.format('tostring(context[%q] or "")', var_name))
+        elseif token.type == "STMT_START" then
+            error("Statements not yet supported")
+        else
+            error("Unexpected token: " .. token.type .. " at position " .. parser.pos)
         end
-
-        -- Add static text before the placeholder (if any)
-        local static = template_str:sub(pos, start - 1)
-        if static ~= "" then
-            table.insert(chunks, escape_lua_string(static))
-        end
-
-        -- Find the end of the placeholder
-        local var_end, end_pos = template_str:find("}}", end_start + 1)
-        if not var_end then
-            error("Unclosed placeholder starting at position " .. start)
-        end
-
-        -- Extract the variable name (trim whitespace for simplicity)
-        local var_name =
-            template_str:sub(end_start + 1, var_end - 1):match("^%s*(.-)%s*$")
-        if var_name == "" then
-            error("Empty placeholder at position " .. start)
-        end
-
-        -- Generate Lua code for safe table access and tostring conversion
-        table.insert(chunks, string.format('tostring(context[%q] or "")', var_name))
-
-        -- Move position past the closing }}
-        pos = end_pos + 1
     end
 
     -- If no chunks, just empty string
