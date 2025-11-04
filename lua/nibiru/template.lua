@@ -63,12 +63,34 @@ local function compile(template_str)
         error("Failed to compile template: " .. load_err)
     end
 
-    -- Return a render function that takes context and calls the compiled chunk
-    return function(context)
-        -- Wrap context in a table if not already
-        local ctx = type(context) == "table" and context or {}
-        return chunk(ctx)
+    -- Format the body for pretty printing
+    local formatted_body = "local context = ...\n\nreturn (\n"
+    for i, chunk in ipairs(chunks) do
+        formatted_body = formatted_body .. "    " .. chunk
+        if i < #chunks then
+            formatted_body = formatted_body .. " ..\n"
+        else
+            formatted_body = formatted_body .. "\n"
+        end
     end
+    formatted_body = formatted_body .. ")"
+
+    -- Return a table with render function and the formatted code
+    local result = {
+        render = function(context)
+            -- Wrap context in a table if not already
+            local ctx = type(context) == "table" and context or {}
+            return chunk(ctx)
+        end,
+        code = formatted_body
+    }
+    -- Make the table callable for backward compatibility
+    setmetatable(result, {
+        __call = function(self, context)
+            return self.render(context)
+        end
+    })
+    return result
 end
 
 -- Make the Template constructor callable: Template(template_str) returns the render function directly
