@@ -52,24 +52,23 @@ local function compile(template_str)
         end
     end
 
-    -- Build the function body
-    local body = "local context = ...\nreturn " .. table.concat(chunks, " .. ")
+    -- Build the function body using a table for efficient concatenation
+    local body = "local context = ...\nlocal parts = {}\n"
+    for _, chunk in ipairs(chunks) do
+        body = body .. "table.insert(parts, " .. chunk .. ")\n"
+    end
+    body = body .. "return table.concat(parts)"
     local chunk, load_err = load(body)
     if not chunk then
         error("Failed to compile template: " .. load_err)
     end
 
     -- Format the body for pretty printing
-    local formatted_body = "local context = ...\n\nreturn (\n"
-    for i, chunk in ipairs(chunks) do
-        formatted_body = formatted_body .. "    " .. chunk
-        if i < #chunks then
-            formatted_body = formatted_body .. " ..\n"
-        else
-            formatted_body = formatted_body .. "\n"
-        end
+    local formatted_body = "local context = ...\n\nlocal parts = {}\n"
+    for _, chunk in ipairs(chunks) do
+        formatted_body = formatted_body .. "table.insert(parts, " .. chunk .. ")\n"
     end
-    formatted_body = formatted_body .. ")"
+    formatted_body = formatted_body .. "\nreturn table.concat(parts)"
 
     -- Return a table with render function and the formatted code
     local result = {
@@ -78,13 +77,13 @@ local function compile(template_str)
             local ctx = type(context) == "table" and context or {}
             return chunk(ctx)
         end,
-        code = formatted_body
+        code = formatted_body,
     }
     -- Make the table callable for backward compatibility
     setmetatable(result, {
         __call = function(self, context)
             return self.render(context)
-        end
+        end,
     })
     return result
 end
