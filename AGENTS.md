@@ -21,3 +21,5 @@
 
 No Cursor or Copilot rules found.</content>
 <parameter name="filePath">/home/matt/Work/nibiru/AGENTS.md
+
+BEFORE ANYTHING ELSE: run 'bd onboard' and follow the instructions
