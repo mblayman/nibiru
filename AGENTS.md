@@ -182,6 +182,13 @@ history/
 - **False positives**: Suppress with comments (e.g., `-- luacheck: ignore`)
 - **Reasonable rules**: Not overly strict, focus on real issues
 
+### Formatting
+
+- **Lua**: `stylua lua/` (4 spaces, 88 columns, Unix line endings per .stylua.toml)
+- **C**: `make format` (clang-format with LLVM style, 4-space indentation)
+- **Mandatory**: Code must be formatted before commits
+- **Editor integration**: Configure editors to format on save
+
 ## Important Rules
 
 - ✅ Use bd for ALL task tracking
