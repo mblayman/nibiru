@@ -143,7 +143,7 @@ history/
 - ✅ Preserves planning history for archeological research
 - ✅ Reduces noise when browsing the project
 
-### Implementation Guidelines
+## Implementation Guidelines
 
 ### User Documentation
 
