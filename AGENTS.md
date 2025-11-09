@@ -189,6 +189,15 @@ history/
 - **Mandatory**: Code must be formatted before commits
 - **Editor integration**: Configure editors to format on save
 
+### Issue Cleanup
+
+- **Regular cleanup**: Review and close completed issues weekly
+- **Status accuracy**: Keep issue status current (open/in_progress/closed)
+- **Description updates**: Update issue descriptions as understanding evolves
+- **Duplicate removal**: Merge or close duplicate issues
+- **Dependency management**: Keep issue dependencies accurate
+- **Archive old issues**: Only with user confirmation (never automatic)
+
 ## Important Rules
 
 - ✅ Use bd for ALL task tracking
