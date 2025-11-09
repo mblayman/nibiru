@@ -172,6 +172,16 @@ history/
 - **Mandatory**: Tests required for all code changes
 - **Run tests**: `luatest tests/` or `luatest tests/test_specific.lua`
 
+### Linting/Quality
+
+- **Primary linting**: Lua LSP with .luarc.json for static analysis
+- **Code quality**: No unused variables, consistent naming, proper error handling
+- **Security**: Scan for common vulnerabilities (command injection, etc.)
+- **Type safety**: Use EmmyLua annotations where beneficial
+- **Blocking**: Must pass before commits
+- **False positives**: Suppress with comments (e.g., `-- luacheck: ignore`)
+- **Reasonable rules**: Not overly strict, focus on real issues
+
 ## Important Rules
 
 - ✅ Use bd for ALL task tracking
