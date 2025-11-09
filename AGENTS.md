@@ -143,7 +143,24 @@ history/
 - ✅ Preserves planning history for archeological research
 - ✅ Reduces noise when browsing the project
 
-### Important Rules
+### Implementation Guidelines
+
+### User Documentation
+
+- **README.md**: High-level overview, installation instructions, quick start guide
+- **docs/**: Detailed user guides, API reference, configuration options, best practices, architecture docs
+- **Format**: Markdown files with consistent structure and formatting
+- **Coverage**: Public APIs, usage examples, tutorials, breaking changes that affect users
+- **Examples**: Working code samples in `examples/` directory with progressive complexity
+- **AI-Friendly**: Complete runnable examples, clear patterns, searchable structure, error handling examples
+
+### Developer Documentation
+
+- **Inline comments**: EmmyLua annotations for LSP hover documentation
+- **Code structure**: Clear module organization with descriptive names
+- **Internal APIs**: Documented for maintenance and extension
+
+## Important Rules
 
 - ✅ Use bd for ALL task tracking
 - ✅ Always use `--json` flag for programmatic use
