@@ -160,6 +160,18 @@ history/
 - **Code structure**: Clear module organization with descriptive names
 - **Internal APIs**: Documented for maintenance and extension
 
+### Testing
+
+- **Framework**: Use luatest framework (`make deps` to install)
+- **Coverage**: 100% statement coverage for all code
+- **Structure**: `tests/` directory mirroring `lua/` structure
+- **Naming**: `test_filename.lua`, individual tests with `::` syntax (e.g., `tests/test_tokenizer.lua::test_literal_string`)
+- **Scope**: Unit tests, integration tests, performance tests
+- **Template testing**: Both compilation and runtime rendering
+- **Safety**: Mock unsafe operations (file I/O, network, etc.)
+- **Mandatory**: Tests required for all code changes
+- **Run tests**: `luatest tests/` or `luatest tests/test_specific.lua`
+
 ## Important Rules
 
 - ✅ Use bd for ALL task tracking
