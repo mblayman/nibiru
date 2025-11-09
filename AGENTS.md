@@ -1,6 +1,7 @@
 # AGENTS.md
 
 ## Build/Lint/Test Commands
+
 - **Build**: `make build` (compiles C code and Lua)
 - **Run**: `make run` (builds and starts server)
 - **Clean**: `make clean` (removes build artifacts)
@@ -12,6 +13,7 @@
 - **Lint**: Use Lua LSP with .luarc.json for static analysis
 
 ## Code Style Guidelines
+
 - **Languages**: Lua (dynamic typing, no explicit types) and C (static typing)
 - **Lua Imports**: Use `require("module.path")` for modules
 - **Lua Naming**: snake_case for functions/variables, PascalCase for modules/classes
