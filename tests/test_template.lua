@@ -13,4 +13,181 @@ function tests.test_expression_value()
     assert.equal("a test value", output)
 end
 
+-- Component registration and basic usage.
+function tests.test_component_registration_and_usage()
+    -- Register a simple Button component.
+    Template.component("Button", [[<button>{{text}}</button>]])
+
+    -- Use the component in a template.
+    local template = Template("<div><Button text='Click me'/></div>")
+    local output = template({})
+
+    assert.equal("<div><button>Click me</button></div>", output)
+end
+
+-- Component with props and context data.
+function tests.test_component_with_props()
+    -- Register component with props.
+    Template.component("UserCard", [[
+<div class="card">
+  <h3>{{name}}</h3>
+  <p class="role">{{role}}</p>
+</div>]])
+
+    -- Use component with context data.
+    local template = Template("<UserCard name='{{user.name}}' role='{{user.role}}'/>")
+    local context = { user = { name = "Alice", role = "Admin" } }
+    local output = template(context)
+
+    assert.equal([[<div class="card">
+  <h3>Alice</h3>
+  <p class="role">Admin</p>
+</div>]], output)
+end
+
+-- Component composition - component using another component.
+function tests.test_component_composition()
+    -- Register base Button component.
+    Template.component("Button", [[<button class="{{class}}">{{text}}</button>]])
+
+    -- Register Form component that uses Button.
+    Template.component("Form", [[
+<form>
+  <input type="text" name="name"/>
+  <Button class="primary" text="Submit"/>
+</form>]])
+
+    -- Use composed component.
+    local template = Template("<div><Form/></div>")
+    local output = template({})
+
+    assert.equal([[<div>
+<form>
+  <input type="text" name="name"/>
+  <button class="primary">Submit</button>
+</form>
+</div>]], output)
+end
+
+-- Component with default values.
+function tests.test_component_with_defaults()
+    -- Register component with default values.
+    Template.component("Button", [[<button type="{{type or 'button'}}">{{text}}</button>]])
+
+    -- Use without specifying type (should use default).
+    local template = Template("<Button text='Save'/>")
+    local output = template({})
+
+    assert.equal("<button type=\"button\">Save</button>", output)
+end
+
+-- Multiple components in one template.
+function tests.test_multiple_components()
+    Template.component("Header", [[<h1>{{title}}</h1>]])
+    Template.component("Footer", [[<footer>{{text}}</footer>]])
+
+    local template = Template([[
+<div>
+  <Header title="Welcome"/>
+  <p>Content here</p>
+  <Footer text="Copyright 2024"/>
+</div>]])
+
+    local output = template({})
+    assert.equal([[
+<div>
+  <h1>Welcome</h1>
+  <p>Content here</p>
+  <footer>Copyright 2024</footer>
+</div>]], output)
+end
+
+-- Error: Using unregistered component.
+function tests.test_unregistered_component_error()
+    local template = Template("<UnknownComponent/>")
+
+    -- Should error when trying to render.
+    local success, err = pcall(function() template({}) end)
+    assert.is_false(success)
+    assert.match("UnknownComponent", err)
+end
+
+-- Error: Component name conflict.
+function tests.test_component_name_conflict()
+    Template.component("TestButton", [[<button>Original</button>]])
+
+    -- Registering same name again should error.
+    local success, err = pcall(function()
+        Template.component("TestButton", [[<button>Duplicate</button>]])
+    end)
+    assert.is_false(success)
+    assert.match("already registered", err)
+end
+
+-- Error: Invalid component name (lowercase).
+function tests.test_invalid_component_name_lowercase()
+    local success, err = pcall(function()
+        Template.component("lowercase", [[<div>invalid</div>]])
+    end)
+    assert.is_false(success)
+    assert.match("component names must start with capital", err)
+end
+
+-- Error: Component without self-closing tag.
+function tests.test_component_missing_self_closing_tag()
+    Template.component("Button", [[<button>{{text}}</button>]])
+
+    -- Missing /> at end of component tag.
+    local template = Template("<Button class=\"primary\" text=\"Save\">")
+    local success, err = pcall(function() template({}) end)
+    assert.is_false(success)
+    assert.match("malformed component tag", err)
+end
+
+-- Error: Component with missing closing tag.
+function tests.test_component_missing_closing_tag()
+    Template.component("Button", [[<button>{{text}}</button>]])
+
+    -- Missing closing </Button> tag.
+    local template = Template("<Button><span>content</span>")
+    local success, err = pcall(function() template({}) end)
+    assert.is_false(success)
+    assert.match("unclosed component tag", err)
+end
+
+-- Error: Mismatched component tags.
+function tests.test_component_mismatched_tags()
+    Template.component("Button", [[<button>{{text}}</button>]])
+    Template.component("Icon", [[<i>{{name}}</i>]])
+
+    -- Wrong closing tag.
+    local template = Template("<Button>Save</Icon>")
+    local success, err = pcall(function() template({}) end)
+    assert.is_false(success)
+    assert.match("mismatched component tags", err)
+end
+
+-- Error: Component with malformed attributes.
+function tests.test_component_malformed_attributes()
+    Template.component("Button", [[<button>{{text}}</button>]])
+
+    -- Malformed attribute syntax.
+    local template = Template("<Button class=\"primary\" text=Save\">Save</Button>")
+    local success, err = pcall(function() template({}) end)
+    assert.is_false(success)
+    assert.match("malformed attribute", err)
+end
+
+-- Error: Nested components with missing closing tags.
+function tests.test_nested_components_missing_closing()
+    Template.component("Button", [[<button>{{text}}</button>]])
+    Template.component("Form", [[<form>{{children}}</form>]])
+
+    -- Nested components with missing closing tags.
+    local template = Template("<Form><Button text=\"Save\"><span>content</span></Form>")
+    local success, err = pcall(function() template({}) end)
+    assert.is_false(success)
+    assert.match("unclosed component tag", err)
+end
+
 return tests

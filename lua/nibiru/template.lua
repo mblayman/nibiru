@@ -2,12 +2,32 @@
 local Template = {}
 local Tokenizer = require("nibiru.tokenizer")
 
+--- Component registry: maps component names to their template strings
+---@type table<string, string>
+local component_registry = {}
+
+--- Register a reusable component template.
+---@param name string Component name (should start with capital letter)
+---@param template_string string The component's template content
+function Template.component(name, template_string)
+    if component_registry[name] then
+        error("Component '" .. name .. "' is already registered")
+    end
+    component_registry[name] = template_string
+end
+
+--- Escape a string for safe inclusion in Lua double-quoted string literals.
+---@param s string String to escape
+---@return string Escaped string wrapped in quotes
 local function escape_lua_string(s)
     -- Escape for Lua double-quoted string literal
     s = s:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n"):gsub("\r", "\\r")
     return '"' .. s .. '"'
 end
 
+--- Parse an identifier from expression tokens.
+---@param parser table Parser state with tokens and pos fields
+---@return string The identifier name
 local function parse_expr(parser)
     local tokens = parser.tokens
     local token = tokens[parser.pos]
@@ -19,6 +39,49 @@ local function parse_expr(parser)
     end
 end
 
+--- Compile a component template with provided attributes.
+---@param component_template string The component's template string
+---@param attributes table<string, string> Attribute values to inject into the component
+---@return table Array of compiled chunks for the component
+local function compile_component(component_template, attributes)
+    -- Compile component template with attributes as additional context
+    local component_tokens = Tokenizer.tokenize(component_template)
+    local component_parser = { tokens = component_tokens, pos = 1 }
+    local chunks = {}
+
+    while component_parser.pos <= #component_tokens do
+        local token = component_tokens[component_parser.pos]
+        if token.type == "TEXT" then
+            table.insert(chunks, escape_lua_string(token.value))
+            component_parser.pos = component_parser.pos + 1
+        elseif token.type == "EXPR_START" then
+            component_parser.pos = component_parser.pos + 1
+            local var_name = parse_expr(component_parser)
+            if component_parser.pos > #component_tokens or component_tokens[component_parser.pos].type ~= "EXPR_END" then
+                error("Expected }} after expression in component")
+            end
+            component_parser.pos = component_parser.pos + 1
+
+            -- Check if this is an attribute, otherwise use normal context access
+            if attributes[var_name] then
+                table.insert(chunks, escape_lua_string(attributes[var_name]))
+            else
+                -- Generate Lua code for safe table access and tostring conversion
+                table.insert(chunks, string.format('tostring(context[%q] or "")', var_name))
+            end
+        elseif token.type == "STMT_START" then
+            error("Statements not yet supported in components")
+        else
+            error("Unexpected token in component: " .. token.type .. " at position " .. component_parser.pos)
+        end
+    end
+
+    return chunks
+end
+
+--- Compile a template string into a renderable template object.
+---@param template_str string Template string to compile
+---@return table Template object with render function and code field
 local function compile(template_str)
     local tokens = Tokenizer.tokenize(template_str)
     local parser = { tokens = tokens, pos = 1 }
@@ -38,6 +101,59 @@ local function compile(template_str)
             parser.pos = parser.pos + 1
             -- Generate Lua code for safe table access and tostring conversion
             table.insert(chunks, string.format('tostring(context[%q] or "")', var_name))
+        elseif token.type == "COMPONENT_START" then
+            -- Parse component usage: <ComponentName attr="value" />
+            parser.pos = parser.pos + 1
+            if parser.pos > #tokens or tokens[parser.pos].type ~= "COMPONENT_NAME" then
+                error("Expected component name after <")
+            end
+            local component_name = tokens[parser.pos].value
+            parser.pos = parser.pos + 1
+
+            -- Check if component is registered
+            local component_template = component_registry[component_name]
+            if not component_template then
+                error("Component '" .. component_name .. "' is not registered")
+            end
+
+            -- Parse attributes if present (attr="value" or attr='value')
+            local attributes = {}
+            if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_ATTRS" then
+                local attr_string = tokens[parser.pos].value
+                -- Simple attribute parsing: attr="value" or attr='value'
+                for attr, value in attr_string:gmatch('([a-zA-Z_][a-zA-Z0-9_]*)="([^"]*)"') do
+                    attributes[attr] = value
+                end
+                for attr, value in attr_string:gmatch("([a-zA-Z_][a-zA-Z0-9_]*)='([^']*)'") do
+                    attributes[attr] = value
+                end
+                parser.pos = parser.pos + 1
+            end
+
+            -- Handle self-closing (/) or opening (>) tag
+            local is_self_closing = false
+            if parser.pos <= #tokens then
+                if tokens[parser.pos].type == "COMPONENT_SELF_CLOSE" then
+                    is_self_closing = true
+                elseif tokens[parser.pos].type == "COMPONENT_OPEN" then
+                    is_self_closing = false
+                else
+                    error("Expected component tag closure")
+                end
+                parser.pos = parser.pos + 1
+            end
+
+            if is_self_closing then
+                -- Inline the component template with attributes as context
+                local component_chunks = compile_component(component_template, attributes)
+                for _, chunk in ipairs(component_chunks) do
+                    table.insert(chunks, chunk)
+                end
+            else
+                -- For now, only support self-closing components
+                error("Non-self-closing components not yet supported")
+            end
+
         elseif token.type == "STMT_START" then
             error("Statements not yet supported")
         else

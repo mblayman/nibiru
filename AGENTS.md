@@ -153,6 +153,7 @@ history/
 - **Coverage**: Public APIs, usage examples, tutorials, breaking changes that affect users
 - **Examples**: Working code samples in `examples/` directory with progressive complexity
 - **AI-Friendly**: Complete runnable examples, clear patterns, searchable structure, error handling examples
+- **Comments**: Use proper punctuation - imperative sentences should end with a period
 
 ### Developer Documentation
 
