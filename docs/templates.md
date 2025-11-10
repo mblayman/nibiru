@@ -27,8 +27,10 @@ Template.component("Icon", [[
 ```
 
 Components are registered with:
-- **Name**: A unique identifier (use CapitalCase to distinguish from HTML elements)
+- **Name**: A unique identifier (must start with a capital letter to distinguish from HTML elements)
 - **Template String**: The component's template content
+
+Component names must start with a capital letter. Attempting to register a component with a lowercase name will result in an error.
 
 ### Basic Component Usage
 
@@ -53,7 +55,7 @@ Template.component("LoginForm", [[
 
 ### Component Props
 
-Pass data to components using attributes:
+Pass data to components using attributes. Attributes can contain static values or dynamic expressions:
 
 ```lua
 Template.component("UserCard", [[
@@ -65,11 +67,54 @@ Template.component("UserCard", [[
 ]])
 
 -- Usage
-local card = Template("user_card_template")
-print(card({
-  name = "John Doe",
-  role = "Administrator"
+local template = Template('<UserCard name=user.name role=user.role/>')
+print(template({
+  user = { name = "John Doe", role = "Administrator" }
 }))
+```
+
+#### Attribute Syntax
+
+Attributes support two formats:
+
+- **Quoted strings**: `attr="value"` or `attr='value'`
+- **Expressions**: `attr=expression` (unquoted, supports Lua expressions)
+
+```lua
+-- Examples
+<Button text="Click me" disabled=false/>
+<Button class="primary" size=size or "medium"/>
+<UserCard name=user.name role=user.role or "Guest"/>
+```
+
+#### Expression Syntax
+
+Expressions in `{{ }}` blocks and attributes support:
+- Variable access: `user.name`, `item.value`
+- Operators: `+`, `-`, `*`, `/`, `==`, `~=`, `>`, `<`, `>=`, `<=`
+- Logical operators: `and`, `or`, `not`
+- Literals: strings `"hello"`, numbers `123`, booleans `true`/`false`
+- Property access: `object.property`, `array[1]`
+- Default values: `value or "default"`
+
+```lua
+{{ user.name or "Anonymous" }}
+{{ count > 0 and "items" or "item" }}
+{{ item.price * 1.1 }}
+```
+
+### Component Syntax Requirements
+
+Components must use self-closing syntax:
+
+```lua
+<!-- Correct -->
+<Button text="Save"/>
+<UserCard name="John"/>
+
+<!-- Incorrect - will cause errors -->
+<Button>Save</Button>
+<UserCard>Content</UserCard>
 ```
 
 ### Component vs HTML Distinction
@@ -78,6 +123,24 @@ print(card({
 - **HTML Elements**: Use lowercase (`<div>`, `<button>`, `<input>`)
 
 This naming convention ensures clear separation between custom components and standard HTML elements.
+
+### Error Handling
+
+The template system provides clear error messages for common issues:
+
+- **Invalid component names**: Component names must start with capital letters
+- **Duplicate registration**: Cannot register the same component name twice
+- **Malformed syntax**: Invalid component tags or attributes
+- **Missing components**: Using unregistered component names
+
+```lua
+-- These will cause errors:
+Template.component("button", "...")  -- lowercase name
+Template.component("Button", "...")   -- register
+Template.component("Button", "...")   -- duplicate
+Template('<button text="ok"/>')       -- lowercase treated as HTML
+Template('<Unknown/>')                -- unregistered component
+```
 
 ### Rendering Templates
 
@@ -104,3 +167,66 @@ local result = template({
 ```
 
 Components are inlined during compilation for maximum performance - no runtime component resolution overhead.
+
+## Advanced Features
+
+### Component Composition
+
+Components can use other components, enabling complex UI hierarchies:
+
+```lua
+Template.component("Button", [[<button>{{text}}</button>]])
+Template.component("Form", [[
+<form>
+  <input type="text" name="query"/>
+  <Button text="Search"/>
+</form>
+]])
+```
+
+### Default Values
+
+Use Lua expressions for default values in component attributes:
+
+```lua
+Template.component("Button", [[
+<button class="{{class or 'btn'}}" type="{{type or 'button'}}">
+  {{text}}
+</button>
+]])
+```
+
+## Testing and Development
+
+### Clearing Components
+
+For testing, you can clear all registered components:
+
+```lua
+Template.clear_components()  -- Remove all registered components
+```
+
+### Template Compilation
+
+Templates are compiled to Lua functions for optimal performance. The compilation process:
+
+1. Parses template syntax into tokens
+2. Resolves component references
+3. Generates efficient Lua code
+4. Returns a callable function
+
+```lua
+local template = Template('<Button text="Hello"/>')
+-- template is now a compiled function ready for rendering
+
+-- For debugging, templates also expose the generated Lua code:
+print(template.code)  -- Shows the compiled Lua source
+```
+
+### Error Messages
+
+All errors occur at render time (not compile time) to provide better debugging:
+
+- `"Component 'X' is not registered"` - Using unknown component
+- `"malformed attribute"` - Invalid attribute syntax
+- `"malformed component tag"` - Invalid component syntax
