@@ -430,23 +430,37 @@ local function compile(template_str)
                        error("Unclosed if statement")
                    end
 
-                   -- Generate condition expression
-                   local condition_parts = {}
-                   for _, token in ipairs(condition_tokens) do
-                       if token.type == "IDENTIFIER" then
-                           table.insert(condition_parts, "c." .. token.value)
-                       elseif token.type == "LITERAL" then
-                           if type(token.value) == "string" then
-                               table.insert(condition_parts, string.format("%q", token.value))
-                           else
-                               table.insert(condition_parts, tostring(token.value))
-                           end
-                       elseif token.type == "OPERATOR" then
-                           table.insert(condition_parts, token.value)
-                       else
-                           table.insert(condition_parts, token.value or "")
-                       end
-                   end
+                    -- Generate condition expression
+                    local condition_parts = {}
+                    local prev_token = nil
+                    for _, token in ipairs(condition_tokens) do
+                        -- Add space between tokens unless this token is a dot or follows a dot
+                        if #condition_parts > 0 and not (token.type == "PUNCTUATION" and token.value == ".") and not (prev_token and prev_token.type == "PUNCTUATION" and prev_token.value == ".") then
+                            condition_parts[#condition_parts] = condition_parts[#condition_parts] .. " "
+                        end
+
+                        if token.type == "IDENTIFIER" then
+                            -- Don't add "c." prefix if this identifier follows a dot (property access)
+                            if prev_token and prev_token.type == "PUNCTUATION" and prev_token.value == "." then
+                                table.insert(condition_parts, token.value)
+                            else
+                                table.insert(condition_parts, "c." .. token.value)
+                            end
+                        elseif token.type == "LITERAL" then
+                            if type(token.value) == "string" then
+                                table.insert(condition_parts, string.format("%q", token.value))
+                            else
+                                table.insert(condition_parts, tostring(token.value))
+                            end
+                        elseif token.type == "OPERATOR" then
+                            table.insert(condition_parts, token.value)
+                        elseif token.type == "PUNCTUATION" then
+                            table.insert(condition_parts, token.value)
+                        else
+                            table.insert(condition_parts, token.value or "")
+                        end
+                        prev_token = token
+                    end
 
                    local condition_expr = table.concat(condition_parts, " ")
                    if condition_expr == "" then
