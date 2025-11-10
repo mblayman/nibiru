@@ -61,6 +61,9 @@ local function tokenize_stmt(input)
                 table.insert(tokens, {type = "IF_START"})
             elseif word == "endif" then
                 table.insert(tokens, {type = "IF_END"})
+            elseif word == "or" or word == "and" or word == "not" or word == "true" or word == "false" or word == "nil" then
+                -- Logical operators and boolean literals
+                table.insert(tokens, {type = "KEYWORD", value = word})
             else
                 -- Regular identifier
                 table.insert(tokens, {type = "IDENTIFIER", value = word})
