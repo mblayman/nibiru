@@ -83,8 +83,14 @@ local function tokenize_stmt(input)
             table.insert(tokens, {type = "LITERAL", value = str_value})
             pos = pos + 1 -- Skip closing quote
         elseif c == "." then
-            table.insert(tokens, {type = "PUNCTUATION", value = "."})
-            pos = pos + 1
+            -- Check for .. operator
+            if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "." then
+                table.insert(tokens, {type = "OPERATOR", value = ".."})
+                pos = pos + 2
+            else
+                table.insert(tokens, {type = "PUNCTUATION", value = "."})
+                pos = pos + 1
+            end
         elseif c == "=" then
             -- Check for == operator
             if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "=" then
@@ -121,6 +127,15 @@ local function tokenize_stmt(input)
         elseif c == "+" or c == "-" or c == "*" or c == "/" then
             table.insert(tokens, {type = "OPERATOR", value = c})
             pos = pos + 1
+        elseif c == "." then
+            -- Check for .. operator
+            if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "." then
+                table.insert(tokens, {type = "OPERATOR", value = ".."})
+                pos = pos + 2
+            else
+                table.insert(tokens, {type = "PUNCTUATION", value = "."})
+                pos = pos + 1
+            end
         elseif c == "(" or c == ")" then
             table.insert(tokens, {type = "PUNCTUATION", value = c})
             pos = pos + 1
