@@ -145,6 +145,18 @@ history/
 
 ## Implementation Guidelines
 
+### Development Workflow
+
+**IMPORTANT**: Follow this exact workflow for implementing new features:
+
+1. **📚 User Documentation First**: Write comprehensive user documentation in `docs/` explaining the feature, its syntax, and examples. This defines the expected behavior and API.
+
+2. **🧪 Automated Tests**: Create failing tests in `tests/` that define the exact expected behavior. Tests should cover all edge cases and error conditions.
+
+3. **💻 Implementation**: Only after documentation and tests are approved, implement the feature to make tests pass.
+
+**⚠️ CONSULT USER BETWEEN STEPS**: The user is the designer - get approval for documentation and tests before proceeding to implementation. This ensures alignment on design decisions.
+
 ### User Documentation
 
 - **README.md**: High-level overview, installation instructions, quick start guide
