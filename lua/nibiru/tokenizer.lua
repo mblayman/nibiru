@@ -173,43 +173,44 @@ function Tokenizer.tokenize(template_str)
 
             table.insert(tokens, {type = "COMPONENT_NAME", value = component_name})
 
-            -- Parse attributes (attr="value", attr='value', or attr=expression)
-            local attr_start = #component_name + 1
-            local attr_string = tag_content:sub(attr_start):match("^%s*(.-)%s*$")
-            if attr_string and attr_string ~= "" then
-                -- Parse individual attributes, handling quoted values with spaces
-                local parsed_attrs = {}
-                local pos = 1
-                while pos <= #attr_string do
-                    -- Skip whitespace
-                    pos = attr_string:find("[^%s]", pos) or (#attr_string + 1)
-                    if pos > #attr_string then break end
+             -- Parse attributes (attr="value", attr='value', or attr=expression)
+             local attr_start = #component_name + 1
+             local attr_string = tag_content:sub(attr_start):match("^%s*(.-)%s*$")
+             if attr_string and attr_string ~= "" then
+                 -- Parse individual attributes, handling quoted values with spaces
+                 local parsed_attrs = {}
+                 local malformed_attrs = {}
+                 local pos = 1
+                 while pos <= #attr_string do
+                     -- Skip whitespace
+                     pos = attr_string:find("[^%s]", pos) or (#attr_string + 1)
+                     if pos > #attr_string then break end
 
-                    -- Find attr=
-                    local attr_start_pos = pos
-                    local equal_pos = attr_string:find("=", pos)
-                    if not equal_pos then break end
+                     -- Find attr=
+                     local attr_start_pos = pos
+                     local equal_pos = attr_string:find("=", pos)
+                     if not equal_pos then break end
 
-                    local attr = attr_string:sub(attr_start_pos, equal_pos - 1):match("^%s*(.-)%s*$")
-                    pos = equal_pos + 1
+                     local attr = attr_string:sub(attr_start_pos, equal_pos - 1):match("^%s*(.-)%s*$")
+                     pos = equal_pos + 1
 
-                    -- Find the value (handle quoted strings)
-                    local value
-                    if attr_string:sub(pos, pos) == '"' or attr_string:sub(pos, pos) == "'" then
-                        -- Quoted string
-                        local quote = attr_string:sub(pos, pos)
-                        pos = pos + 1
-                        local value_start = pos
-                        while pos <= #attr_string and attr_string:sub(pos, pos) ~= quote do
-                            if attr_string:sub(pos, pos) == "\\" then
-                                pos = pos + 1 -- Skip escaped char
-                            end
-                            pos = pos + 1
-                        end
-                        value = attr_string:sub(value_start, pos - 1)
-                        pos = pos + 1 -- Skip closing quote
-                        parsed_attrs[attr] = { type = "string", value = value }
-                     else
+                     -- Find the value (handle quoted strings)
+                     local value
+                     if attr_string:sub(pos, pos) == '"' or attr_string:sub(pos, pos) == "'" then
+                         -- Quoted string
+                         local quote = attr_string:sub(pos, pos)
+                         pos = pos + 1
+                         local value_start = pos
+                         while pos <= #attr_string and attr_string:sub(pos, pos) ~= quote do
+                             if attr_string:sub(pos, pos) == "\\" then
+                                 pos = pos + 1 -- Skip escaped char
+                             end
+                             pos = pos + 1
+                         end
+                         value = attr_string:sub(value_start, pos - 1)
+                         pos = pos + 1 -- Skip closing quote
+                         parsed_attrs[attr] = { type = "string", value = value }
+                      else
                          -- Unquoted expression (until next space or end)
                          local value_start = pos
                          while pos <= #attr_string and attr_string:sub(pos, pos) ~= " " do
@@ -220,16 +221,16 @@ function Tokenizer.tokenize(template_str)
                          -- Validate unquoted attribute for malformed syntax
                          local is_valid, error_msg = validate_unquoted_attribute(value)
                          if not is_valid then
-                             -- For now, still parse it but mark as potentially malformed
-                             -- Future enhancement: could generate MALFORMED_ATTRIBUTE token
-                             parsed_attrs[attr] = { type = "expression", value = value, malformed = true }
+                             -- Mark as malformed but still include in attributes for now
+                             parsed_attrs[attr] = { type = "expression", value = value, malformed = true, error = error_msg }
+                             malformed_attrs[attr] = error_msg
                          else
                              parsed_attrs[attr] = { type = "expression", value = value }
                          end
                      end
-                end
-                table.insert(tokens, {type = "COMPONENT_ATTRS", value = parsed_attrs})
-            end
+                 end
+                 table.insert(tokens, {type = "COMPONENT_ATTRS", value = parsed_attrs, malformed = malformed_attrs})
+             end
 
             -- Check if self-closing
             local is_self_closing = template_str:sub(tag_end, tag_end) == "/"

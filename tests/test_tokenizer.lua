@@ -177,7 +177,7 @@ function tests.test_component_with_attributes()
         {type = "COMPONENT_NAME", value = "Button"},
         {type = "COMPONENT_ATTRS", value = {
             text = {type = "string", value = "Click me"}
-        }},
+        }, malformed = {}},
         {type = "COMPONENT_SELF_CLOSE"}
     })
 end
@@ -200,7 +200,7 @@ function tests.test_component_mixed_content()
         {type = "COMPONENT_NAME", value = "Button"},
         {type = "COMPONENT_ATTRS", value = {
             text = {type = "string", value = "Click"}
-        }},
+        }, malformed = {}},
         {type = "COMPONENT_SELF_CLOSE"},
         {type = "TEXT", value = " World"}
     })
@@ -232,6 +232,7 @@ function tests.test_attribute_validation()
     assert.equal(attrs.text.type, "expression")
     assert.equal(attrs.text.value, "validValue")
     assert.is_nil(attrs.text.malformed)
+    assert.is_nil(tokens[3].malformed.text)
 
     -- Test malformed unquoted attribute with quote character
     tokens = Tokenizer.tokenize('<Button text=invalid"quote/>')
@@ -241,6 +242,7 @@ function tests.test_attribute_validation()
     assert.equal(attrs.text.type, "expression")
     assert.equal(attrs.text.value, 'invalid"quote')
     assert.is_true(attrs.text.malformed)
+    assert.equal(tokens[3].malformed.text, "malformed attribute: contains invalid character")
 end
 
 return tests

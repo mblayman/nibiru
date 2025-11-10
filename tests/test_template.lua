@@ -180,7 +180,7 @@ function tests.test_component_missing_closing_tag()
         template({})
     end)
     assert.is_false(success)
-    assert.match("unclosed component tag", err)
+    assert.match("malformed component tag", err)
 end
 
 -- Error: Mismatched component tags.
@@ -195,7 +195,7 @@ function tests.test_component_mismatched_tags()
         template({})
     end)
     assert.is_false(success)
-    assert.match("mismatched component tags", err)
+    assert.match("malformed component tag", err)
 end
 
 -- Error: Component with malformed attributes.
@@ -224,7 +224,7 @@ function tests.test_nested_components_missing_closing()
         template({})
     end)
     assert.is_false(success)
-    assert.match("unclosed component tag", err)
+    assert.match("malformed component tag", err)
 end
 
 return tests

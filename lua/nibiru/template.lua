@@ -311,25 +311,34 @@ local function compile(template_str)
             else
                 -- Parse attributes if present
             local attributes = {}
+            local has_malformed_attrs = false
             if
                 parser.pos <= #tokens
                 and tokens[parser.pos].type == "COMPONENT_ATTRS"
             then
-                local attr_table = tokens[parser.pos].value
-                for attr_name, attr_info in pairs(attr_table) do
-                    if attr_info.type == "string" then
-                        -- String literals are passed as-is (will be escaped when used)
-                        attributes[attr_name] = attr_info.value
-                    elseif attr_info.type == "expression" then
-                        -- Expressions are stored as Lua code with a special marker
-                        local parts = {}
-                        for part in attr_info.value:gmatch("[^.]+") do
-                            table.insert(parts, string.format("[%q]", part))
+                local attr_token = tokens[parser.pos]
+                local attr_table = attr_token.value
+
+                -- Check for malformed attributes
+                if attr_token.malformed and next(attr_token.malformed) then
+                    has_malformed_attrs = true
+                else
+                    -- Process valid attributes
+                    for attr_name, attr_info in pairs(attr_table) do
+                        if attr_info.type == "string" then
+                            -- String literals are passed as-is (will be escaped when used)
+                            attributes[attr_name] = attr_info.value
+                        elseif attr_info.type == "expression" then
+                            -- Expressions are stored as Lua code with a special marker
+                            local parts = {}
+                            for part in attr_info.value:gmatch("[^.]+") do
+                                table.insert(parts, string.format("[%q]", part))
+                            end
+                            attributes[attr_name] = "__CODE__"
+                                .. "tostring(context"
+                                .. table.concat(parts)
+                                .. ' or "")'
                         end
-                        attributes[attr_name] = "__CODE__"
-                            .. "tostring(context"
-                            .. table.concat(parts)
-                            .. ' or "")'
                     end
                 end
                 parser.pos = parser.pos + 1
@@ -348,7 +357,17 @@ local function compile(template_str)
                 parser.pos = parser.pos + 1
             end
 
-            if is_self_closing then
+            if has_malformed_attrs then
+                -- Generate error for malformed attributes
+                table.insert(chunks, 'error("malformed attribute")')
+                -- Skip component closure tokens to prevent cascading errors
+                if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_CLOSE" then
+                    parser.pos = parser.pos + 1
+                    if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_NAME" then
+                        parser.pos = parser.pos + 1
+                    end
+                end
+            elseif is_self_closing then
                 -- Inline the component template with attributes as context
                 -- Attributes are already evaluated during parsing
                 local component_chunks =
@@ -357,20 +376,22 @@ local function compile(template_str)
                     table.insert(chunks, chunk)
                 end
             else
-                -- Components must be self-closing - generate error during rendering
+                -- Components must be self-closing - generate runtime error
                 table.insert(chunks, 'error("malformed component tag")')
-                -- Skip any remaining component processing
-                parser.pos = parser.pos + 1
-                if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_CLOSE" then
-                    parser.pos = parser.pos + 1
-                end
             end
-            end
-        elseif token.type == "STMT_START" then
-            error("Statements not yet supported")
-        else
-            error("Unexpected token: " .. token.type .. " at position " .. parser.pos)
-        end
+             end
+         elseif token.type == "COMPONENT_CLOSE" then
+             -- Handle orphaned component close tags (from malformed component parsing)
+             table.insert(chunks, 'error("mismatched component tags")')
+             parser.pos = parser.pos + 1
+             if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_NAME" then
+                 parser.pos = parser.pos + 1
+             end
+         elseif token.type == "STMT_START" then
+             error("Statements not yet supported")
+         else
+             error("Unexpected token: " .. token.type .. " at position " .. parser.pos)
+         end
     end
 
     -- If no chunks, just empty string
