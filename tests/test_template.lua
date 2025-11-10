@@ -227,48 +227,33 @@ function tests.test_nested_components_missing_closing()
     assert.match("malformed component tag", err)
 end
 
--- Expression: Property access with dot notation (currently broken)
+-- Expression: Property access with dot notation
 function tests.test_expression_property_access()
-    -- This currently fails due to expression parsing bug in {{ }} blocks
     local template = Template('{{ user.name }}')
-    local success, err = pcall(function()
-        return template({ user = { name = "Alice" } })
-    end)
-    -- Currently fails at runtime due to invalid generated code like 'c.user . c.name'
-    -- Should eventually work and return "Alice"
-    assert.is_false(success)
+    local result = template({ user = { name = "Alice" } })
+    assert.equal('Alice', result)
 end
 
 -- Expression: Property access with default value
 function tests.test_expression_property_access_with_default()
-    -- This currently fails due to expression parsing bug
     local template = Template('{{ user.name or "Anonymous" }}')
-    local success, err = pcall(function()
-        return template({ user = {} })  -- user exists but name is nil
-    end)
-    -- Currently this fails at runtime due to invalid generated code
-    -- Should eventually pass and return "Anonymous"
-    assert.is_false(success)
+    local result = template({ user = {} })  -- user exists but name is nil
+    assert.equal('Anonymous', result)
 end
 
 -- Expression: Complex property access
 function tests.test_expression_complex_property_access()
-    -- This currently fails due to expression parsing bug
     local template = Template('{{ user.profile.settings.theme }}')
-    local success, err = pcall(function()
-        return template({
-            user = {
-                profile = {
-                    settings = {
-                        theme = "dark"
-                    }
+    local result = template({
+        user = {
+            profile = {
+                settings = {
+                    theme = "dark"
                 }
             }
-        })
-    end)
-    -- Currently this fails at runtime due to invalid generated code
-    -- Should eventually pass and return "dark"
-    assert.is_false(success)
+        }
+    })
+    assert.equal('dark', result)
 end
 
 -- Expression: Property access in component attributes
