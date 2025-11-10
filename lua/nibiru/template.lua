@@ -86,35 +86,61 @@ local function compile_component(component_template, attributes)
             component_parser.pos = component_parser.pos + 1
         elseif token.type == "EXPR_START" then
             component_parser.pos = component_parser.pos + 1
-            local var_name = parse_expr(component_parser)
-            if
-                component_parser.pos > #component_tokens
-                or component_tokens[component_parser.pos].type ~= "EXPR_END"
-            then
+
+            -- Collect all expression tokens until EXPR_END
+            local expr_tokens = {}
+            while component_parser.pos <= #component_tokens and component_tokens[component_parser.pos].type ~= "EXPR_END" do
+                table.insert(expr_tokens, component_tokens[component_parser.pos])
+                component_parser.pos = component_parser.pos + 1
+            end
+
+            if component_parser.pos > #component_tokens or component_tokens[component_parser.pos].type ~= "EXPR_END" then
                 error("Expected }} after expression in component")
             end
             component_parser.pos = component_parser.pos + 1
 
-            -- Check if this is an attribute, otherwise use normal context access
-            if attributes[var_name] then
-                -- Attributes may be strings or Lua code marked with __CODE__
-                local attr_value = attributes[var_name]
-                if
-                    type(attr_value) == "string"
-                    and attr_value:sub(1, 8) == "__CODE__"
-                then
-                    -- This is Lua code, insert it directly
-                    table.insert(chunks, attr_value:sub(9))
+            -- For now, handle simple expressions only
+            if #expr_tokens == 1 and expr_tokens[1].type == "IDENTIFIER" then
+                local var_name = expr_tokens[1].value
+                -- Check if this is an attribute, otherwise use normal context access
+                if attributes[var_name] then
+                    -- Attributes may be strings or Lua code marked with __CODE__
+                    local attr_value = attributes[var_name]
+                    if type(attr_value) == "string" and attr_value:sub(1, 8) == "__CODE__" then
+                        -- This is Lua code, insert it directly
+                        table.insert(chunks, attr_value:sub(9))
+                    else
+                        -- String literal, escape it
+                        table.insert(chunks, escape_lua_string(attr_value))
+                    end
                 else
-                    -- String literal, escape it
-                    table.insert(chunks, escape_lua_string(attr_value))
+                    -- Generate Lua code for safe table access and tostring conversion
+                    table.insert(chunks, string.format('tostring(context[%q] or "")', var_name))
                 end
             else
-                -- Generate Lua code for safe table access and tostring conversion
-                table.insert(
-                    chunks,
-                    string.format('tostring(context[%q] or "")', var_name)
-                )
+                -- Handle complex expressions by converting tokens back to Lua code
+                local expr_parts = {}
+                for _, token in ipairs(expr_tokens) do
+                    if token.type == "IDENTIFIER" then
+                        table.insert(expr_parts, "c." .. token.value)
+                    elseif token.type == "LITERAL" then
+                        if type(token.value) == "string" then
+                            table.insert(expr_parts, string.format("%q", token.value))
+                        else
+                            table.insert(expr_parts, tostring(token.value))
+                        end
+                    elseif token.type == "OPERATOR" then
+                        table.insert(expr_parts, token.value)
+                    elseif token.type == "KEYWORD" then
+                        table.insert(expr_parts, token.value)
+                    else
+                        table.insert(expr_parts, token.value or "")
+                    end
+                end
+                local expr_str = table.concat(expr_parts, " ")
+
+                -- Generate code to evaluate the expression safely
+                table.insert(chunks, string.format('tostring((function(c) return %s end)(context) or "")', expr_str))
             end
         elseif token.type == "COMPONENT_START" then
             -- Handle component usage within component template (composition)
@@ -217,13 +243,46 @@ local function compile(template_str)
             parser.pos = parser.pos + 1
         elseif token.type == "EXPR_START" then
             parser.pos = parser.pos + 1
-            local var_name = parse_expr(parser)
+
+            -- Collect all expression tokens until EXPR_END
+            local expr_tokens = {}
+            while parser.pos <= #tokens and tokens[parser.pos].type ~= "EXPR_END" do
+                table.insert(expr_tokens, tokens[parser.pos])
+                parser.pos = parser.pos + 1
+            end
+
             if parser.pos > #tokens or tokens[parser.pos].type ~= "EXPR_END" then
                 error("Expected }} after expression")
             end
             parser.pos = parser.pos + 1
-            -- Generate Lua code for safe table access and tostring conversion
-            table.insert(chunks, string.format('tostring(context[%q] or "")', var_name))
+
+            -- Handle simple expressions (backward compatibility)
+            if #expr_tokens == 1 and expr_tokens[1].type == "IDENTIFIER" then
+                local var_name = expr_tokens[1].value
+                table.insert(chunks, string.format('tostring(context[%q] or "")', var_name))
+            else
+                -- Handle complex expressions
+                local expr_parts = {}
+                for _, token in ipairs(expr_tokens) do
+                    if token.type == "IDENTIFIER" then
+                        table.insert(expr_parts, "c." .. token.value)
+                    elseif token.type == "LITERAL" then
+                        if type(token.value) == "string" then
+                            table.insert(expr_parts, string.format("%q", token.value))
+                        else
+                            table.insert(expr_parts, tostring(token.value))
+                        end
+                    elseif token.type == "OPERATOR" then
+                        table.insert(expr_parts, token.value)
+                    elseif token.type == "KEYWORD" then
+                        table.insert(expr_parts, token.value)
+                    else
+                        table.insert(expr_parts, token.value or "")
+                    end
+                end
+                local expr_str = table.concat(expr_parts, " ")
+                table.insert(chunks, string.format('tostring((function(c) return %s end)(context) or "")', expr_str))
+            end
         elseif token.type == "COMPONENT_START" then
             -- Parse component usage: <ComponentName attr="value" />
             parser.pos = parser.pos + 1

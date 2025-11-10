@@ -43,7 +43,12 @@ local function tokenize_expr(input)
                 pos = pos + 1
             end
             local value = input:sub(start, pos - 1)
-            table.insert(tokens, {type = "IDENTIFIER", value = value})
+            -- Check if it's a keyword
+            if value == "or" or value == "and" or value == "not" or value == "true" or value == "false" or value == "nil" then
+                table.insert(tokens, {type = "KEYWORD", value = value})
+            else
+                table.insert(tokens, {type = "IDENTIFIER", value = value})
+            end
         elseif is_digit(c) then
             -- Number literal
             local start = pos
