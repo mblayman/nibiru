@@ -266,9 +266,20 @@ local function compile(template_str)
             else
                 -- Handle complex expressions
                 local expr_parts = {}
+                local prev_token = nil
                 for _, token in ipairs(expr_tokens) do
+                    -- Add space between tokens unless this token is a dot or follows a dot
+                    if #expr_parts > 0 and not (token.type == "PUNCTUATION" and token.value == ".") and not (prev_token and prev_token.type == "PUNCTUATION" and prev_token.value == ".") then
+                        expr_parts[#expr_parts] = expr_parts[#expr_parts] .. " "
+                    end
+
                     if token.type == "IDENTIFIER" then
-                        table.insert(expr_parts, "c." .. token.value)
+                        -- Don't add "c." prefix if this identifier follows a dot (property access)
+                        if prev_token and prev_token.type == "PUNCTUATION" and prev_token.value == "." then
+                            table.insert(expr_parts, token.value)
+                        else
+                            table.insert(expr_parts, "c." .. token.value)
+                        end
                     elseif token.type == "LITERAL" then
                         if type(token.value) == "string" then
                             table.insert(expr_parts, string.format("%q", token.value))
@@ -282,8 +293,9 @@ local function compile(template_str)
                     else
                         table.insert(expr_parts, token.value or "")
                     end
+                    prev_token = token
                 end
-                local expr_str = table.concat(expr_parts, " ")
+                local expr_str = table.concat(expr_parts)
                 table.insert(chunks, string.format('tostring((function(c) return %s end)(context) or "")', expr_str))
             end
         elseif token.type == "COMPONENT_START" then
