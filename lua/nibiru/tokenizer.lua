@@ -22,6 +22,18 @@ local function is_alnum(c)
     return is_alpha(c) or is_digit(c) or c == "_"
 end
 
+--- Validate an unquoted attribute value for malformed syntax.
+---@param value string The attribute value to validate
+---@return boolean True if valid, false if malformed
+---@return string|nil Error message if malformed
+local function validate_unquoted_attribute(value)
+    -- Check for characters that should not appear in unquoted attributes
+    if value:find("[>\"'{}]") then
+        return false, "malformed attribute: contains invalid character"
+    end
+    return true
+end
+
 --- Tokenize an expression string (content within {{ }} blocks).
 ---@param input string Expression string to tokenize
 ---@return table Array of token objects with type and value fields
@@ -197,15 +209,24 @@ function Tokenizer.tokenize(template_str)
                         value = attr_string:sub(value_start, pos - 1)
                         pos = pos + 1 -- Skip closing quote
                         parsed_attrs[attr] = { type = "string", value = value }
-                    else
-                        -- Unquoted expression (until next space or end)
-                        local value_start = pos
-                        while pos <= #attr_string and attr_string:sub(pos, pos) ~= " " do
-                            pos = pos + 1
-                        end
-                        value = attr_string:sub(value_start, pos - 1)
-                        parsed_attrs[attr] = { type = "expression", value = value }
-                    end
+                     else
+                         -- Unquoted expression (until next space or end)
+                         local value_start = pos
+                         while pos <= #attr_string and attr_string:sub(pos, pos) ~= " " do
+                             pos = pos + 1
+                         end
+                         value = attr_string:sub(value_start, pos - 1)
+
+                         -- Validate unquoted attribute for malformed syntax
+                         local is_valid, error_msg = validate_unquoted_attribute(value)
+                         if not is_valid then
+                             -- For now, still parse it but mark as potentially malformed
+                             -- Future enhancement: could generate MALFORMED_ATTRIBUTE token
+                             parsed_attrs[attr] = { type = "expression", value = value, malformed = true }
+                         else
+                             parsed_attrs[attr] = { type = "expression", value = value }
+                         end
+                     end
                 end
                 table.insert(tokens, {type = "COMPONENT_ATTRS", value = parsed_attrs})
             end
