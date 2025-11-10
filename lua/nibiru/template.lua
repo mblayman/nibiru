@@ -357,8 +357,13 @@ local function compile(template_str)
                     table.insert(chunks, chunk)
                 end
             else
-                -- For now, only support self-closing components
-                error("Non-self-closing components not yet supported")
+                -- Components must be self-closing - generate error during rendering
+                table.insert(chunks, 'error("malformed component tag")')
+                -- Skip any remaining component processing
+                parser.pos = parser.pos + 1
+                if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_CLOSE" then
+                    parser.pos = parser.pos + 1
+                end
             end
             end
         elseif token.type == "STMT_START" then
