@@ -10,6 +10,9 @@ local component_registry = {}
 ---@param name string Component name (should start with capital letter)
 ---@param template_string string The component's template content
 function Template.component(name, template_string)
+    if not name:match("^[A-Z]") then
+        error("component names must start with capital")
+    end
     if component_registry[name] then
         error("Component '" .. name .. "' is already registered")
     end
@@ -295,10 +298,18 @@ local function compile(template_str)
             -- Check if component is registered
             local component_template = component_registry[component_name]
             if not component_template then
-                error("Component '" .. component_name .. "' is not registered")
-            end
-
-            -- Parse attributes if present
+                -- Generate code that will error during rendering
+                table.insert(chunks, string.format('error("Component \'%s\' is not registered")', component_name))
+                -- Skip the rest of component processing
+                parser.pos = parser.pos + 1
+                if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_ATTRS" then
+                    parser.pos = parser.pos + 1
+                end
+                if parser.pos <= #tokens and (tokens[parser.pos].type == "COMPONENT_SELF_CLOSE" or tokens[parser.pos].type == "COMPONENT_OPEN") then
+                    parser.pos = parser.pos + 1
+                end
+            else
+                -- Parse attributes if present
             local attributes = {}
             if
                 parser.pos <= #tokens
@@ -348,6 +359,7 @@ local function compile(template_str)
             else
                 -- For now, only support self-closing components
                 error("Non-self-closing components not yet supported")
+            end
             end
         elseif token.type == "STMT_START" then
             error("Statements not yet supported")
