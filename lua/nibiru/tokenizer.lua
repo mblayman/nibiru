@@ -34,6 +34,109 @@ local function validate_unquoted_attribute(value)
     return true
 end
 
+--- Tokenize a statement string (content within {% %} blocks).
+---@param input string Statement string to tokenize
+---@return table Array of token objects with type and value fields
+local function tokenize_stmt(input)
+    local tokens = {}
+    local pos = 1
+    local len = #input
+
+    while pos <= len do
+        local c = input:sub(pos, pos)
+
+        if c == " " or c == "\t" or c == "\n" or c == "\r" then
+            -- Skip whitespace
+            pos = pos + 1
+        elseif is_alpha(c) then
+            -- Identifier or keyword
+            local start = pos
+            while pos <= len and (is_alnum(input:sub(pos, pos)) or input:sub(pos, pos) == "_") do
+                pos = pos + 1
+            end
+            local word = input:sub(start, pos - 1)
+
+            -- Check for control flow keywords
+            if word == "if" then
+                table.insert(tokens, {type = "IF_START"})
+            elseif word == "endif" then
+                table.insert(tokens, {type = "IF_END"})
+            else
+                -- Regular identifier
+                table.insert(tokens, {type = "IDENTIFIER", value = word})
+            end
+        elseif c == '"' or c == "'" then
+            -- String literal
+            local quote = c
+            pos = pos + 1
+            local start = pos
+            while pos <= len and input:sub(pos, pos) ~= quote do
+                if input:sub(pos, pos) == "\\" then
+                    pos = pos + 1 -- Skip escaped char
+                end
+                pos = pos + 1
+            end
+            local str_value = input:sub(start, pos - 1)
+            table.insert(tokens, {type = "LITERAL", value = str_value})
+            pos = pos + 1 -- Skip closing quote
+        elseif c == "." then
+            table.insert(tokens, {type = "PUNCTUATION", value = "."})
+            pos = pos + 1
+        elseif c == "=" then
+            -- Check for == operator
+            if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "=" then
+                table.insert(tokens, {type = "OPERATOR", value = "=="})
+                pos = pos + 2
+            else
+                table.insert(tokens, {type = "OPERATOR", value = "="})
+                pos = pos + 1
+            end
+        elseif c == "~" then
+            -- Check for ~= operator
+            if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "=" then
+                table.insert(tokens, {type = "OPERATOR", value = "~="})
+                pos = pos + 2
+            else
+                error("Invalid character '~' in statement at position " .. pos)
+            end
+        elseif c == ">" then
+            if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "=" then
+                table.insert(tokens, {type = "OPERATOR", value = ">="})
+                pos = pos + 2
+            else
+                table.insert(tokens, {type = "OPERATOR", value = ">"})
+                pos = pos + 1
+            end
+        elseif c == "<" then
+            if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "=" then
+                table.insert(tokens, {type = "OPERATOR", value = "<="})
+                pos = pos + 2
+            else
+                table.insert(tokens, {type = "OPERATOR", value = "<"})
+                pos = pos + 1
+            end
+        elseif c == "+" or c == "-" or c == "*" or c == "/" then
+            table.insert(tokens, {type = "OPERATOR", value = c})
+            pos = pos + 1
+        elseif c == "(" or c == ")" then
+            table.insert(tokens, {type = "PUNCTUATION", value = c})
+            pos = pos + 1
+        elseif c:match("%d") then
+            -- Number literal
+            local start = pos
+            while pos <= len and input:sub(pos, pos):match("%d") do
+                pos = pos + 1
+            end
+            local num_str = input:sub(start, pos - 1)
+            table.insert(tokens, {type = "LITERAL", value = tonumber(num_str)})
+        else
+            error("Invalid character '" .. c .. "' in statement at position " .. pos)
+        end
+    end
+
+    return tokens
+end
+
 --- Tokenize an expression string (content within {{ }} blocks).
 ---@param input string Expression string to tokenize
 ---@return table Array of token objects with type and value fields
@@ -296,9 +399,9 @@ function Tokenizer.tokenize(template_str)
                 error("Unclosed statement starting at position " .. stmt_start)
             end
 
-            -- Tokenize the statement content (similar to expr for now)
+            -- Tokenize the statement content
             local stmt_content = template_str:sub(pos, stmt_end - 1)
-            local stmt_tokens = tokenize_expr(stmt_content)
+            local stmt_tokens = tokenize_stmt(stmt_content)
             for _, t in ipairs(stmt_tokens) do
                 table.insert(tokens, t)
             end

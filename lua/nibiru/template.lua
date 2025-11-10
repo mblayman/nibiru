@@ -237,12 +237,20 @@ end
 local function compile(template_str)
     local tokens = Tokenizer.tokenize(template_str)
     local parser = { tokens = tokens, pos = 1 }
-    local chunks = {}
+    local body_parts = {}  -- Build the function body directly
+    local conditional_stack = {}  -- Stack to track nested conditionals
+
+    -- Start building the function body
+    table.insert(body_parts, "local context = ...")
+    table.insert(body_parts, "local parts = {}")
+    table.insert(body_parts, "local function is_truthy(val)")
+    table.insert(body_parts, "  return val ~= false and val ~= nil and val ~= 0 and val ~= '' and (type(val) ~= 'table' or next(val) ~= nil)")
+    table.insert(body_parts, "end")
 
     while parser.pos <= #tokens do
         local token = tokens[parser.pos]
         if token.type == "TEXT" then
-            table.insert(chunks, escape_lua_string(token.value))
+            table.insert(body_parts, "table.insert(parts, " .. escape_lua_string(token.value) .. ")")
             parser.pos = parser.pos + 1
         elseif token.type == "EXPR_START" then
             parser.pos = parser.pos + 1
@@ -262,7 +270,7 @@ local function compile(template_str)
             -- Handle simple expressions (backward compatibility)
             if #expr_tokens == 1 and expr_tokens[1].type == "IDENTIFIER" then
                 local var_name = expr_tokens[1].value
-                table.insert(chunks, string.format('tostring(context[%q] or "")', var_name))
+                table.insert(body_parts, string.format('table.insert(parts, tostring(context[%q] or ""))', var_name))
             else
                 -- Handle complex expressions
                 local expr_parts = {}
@@ -296,7 +304,7 @@ local function compile(template_str)
                     prev_token = token
                 end
                 local expr_str = table.concat(expr_parts)
-                table.insert(chunks, string.format('tostring((function(c) return %s end)(context) or "")', expr_str))
+                table.insert(body_parts, string.format('table.insert(parts, tostring((function(c) return %s end)(context) or ""))', expr_str))
             end
         elseif token.type == "COMPONENT_START" then
             -- Parse component usage: <ComponentName attr="value" />
@@ -311,7 +319,7 @@ local function compile(template_str)
             local component_template = component_registry[component_name]
             if not component_template then
                 -- Generate code that will error during rendering
-                table.insert(chunks, string.format('error("Component \'%s\' is not registered")', component_name))
+                table.insert(body_parts, string.format('error("Component \'%s\' is not registered")', component_name))
                 -- Skip the rest of component processing
                 parser.pos = parser.pos + 1
                 if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_ATTRS" then
@@ -371,7 +379,7 @@ local function compile(template_str)
 
             if has_malformed_attrs then
                 -- Generate error for malformed attributes
-                table.insert(chunks, 'error("malformed attribute")')
+                table.insert(body_parts, 'error("malformed attribute")')
                 -- Skip component closure tokens to prevent cascading errors
                 if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_CLOSE" then
                     parser.pos = parser.pos + 1
@@ -385,51 +393,110 @@ local function compile(template_str)
                 local component_chunks =
                     compile_component(component_template, attributes)
                 for _, chunk in ipairs(component_chunks) do
-                    table.insert(chunks, chunk)
+                    table.insert(body_parts, "table.insert(parts, " .. chunk .. ")")
                 end
             else
                 -- Components must be self-closing - generate runtime error
-                table.insert(chunks, 'error("malformed component tag")')
+                table.insert(body_parts, 'error("malformed component tag")')
             end
-             end
-         elseif token.type == "COMPONENT_CLOSE" then
-             -- Handle orphaned component close tags (from malformed component parsing)
-             table.insert(chunks, 'error("mismatched component tags")')
-             parser.pos = parser.pos + 1
-             if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_NAME" then
-                 parser.pos = parser.pos + 1
-             end
-         elseif token.type == "STMT_START" then
-             error("Statements not yet supported")
-         else
-             error("Unexpected token: " .. token.type .. " at position " .. parser.pos)
-         end
+              end
+          elseif token.type == "COMPONENT_CLOSE" then
+              -- Handle orphaned component close tags (from malformed component parsing)
+              table.insert(body_parts, 'error("mismatched component tags")')
+              parser.pos = parser.pos + 1
+              if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_NAME" then
+                  parser.pos = parser.pos + 1
+              end
+           elseif token.type == "STMT_START" then
+               -- Handle statement tokens
+               parser.pos = parser.pos + 1
+               if parser.pos > #tokens then
+                   error("Unexpected end of tokens in statement")
+               end
+
+               local stmt_token = tokens[parser.pos]
+               if stmt_token.type == "IF_START" then
+                   -- Parse the condition
+                   parser.pos = parser.pos + 1
+                   local condition_tokens = {}
+
+                   -- Collect tokens until STMT_END
+                   while parser.pos <= #tokens and tokens[parser.pos].type ~= "STMT_END" do
+                       table.insert(condition_tokens, tokens[parser.pos])
+                       parser.pos = parser.pos + 1
+                   end
+
+                   if parser.pos > #tokens or tokens[parser.pos].type ~= "STMT_END" then
+                       error("Unclosed if statement")
+                   end
+
+                   -- Generate condition expression
+                   local condition_parts = {}
+                   for _, token in ipairs(condition_tokens) do
+                       if token.type == "IDENTIFIER" then
+                           table.insert(condition_parts, "c." .. token.value)
+                       elseif token.type == "LITERAL" then
+                           if type(token.value) == "string" then
+                               table.insert(condition_parts, string.format("%q", token.value))
+                           else
+                               table.insert(condition_parts, tostring(token.value))
+                           end
+                       elseif token.type == "OPERATOR" then
+                           table.insert(condition_parts, token.value)
+                       else
+                           table.insert(condition_parts, token.value or "")
+                       end
+                   end
+
+                   local condition_expr = table.concat(condition_parts, " ")
+                   if condition_expr == "" then
+                       condition_expr = "true"  -- Default to true if no condition
+                   end
+
+                   -- Start conditional block with template-language truthiness
+                   table.insert(body_parts, string.format("if is_truthy((function(c) return %s end)(context)) then", condition_expr))
+                   table.insert(conditional_stack, true)
+
+               elseif stmt_token.type == "IF_END" then
+                   -- End conditional block
+                   if #conditional_stack == 0 then
+                       error("Unexpected endif without matching if")
+                   end
+                   table.remove(conditional_stack)
+                   table.insert(body_parts, "end")
+                   parser.pos = parser.pos + 1
+
+                   if parser.pos > #tokens or tokens[parser.pos].type ~= "STMT_END" then
+                       error("Unclosed endif statement")
+                   end
+               else
+                   error("Unknown statement type: " .. stmt_token.type)
+               end
+
+               -- Skip the STMT_END
+               parser.pos = parser.pos + 1
+          else
+              error("Unexpected token: " .. token.type .. " at position " .. parser.pos)
+          end
     end
 
-    -- If no chunks, just empty string
-    if #chunks == 0 then
-        return function()
-            return ""
-        end
+    -- Check for unclosed conditionals
+    if #conditional_stack > 0 then
+        error("Unclosed if statement(s)")
     end
 
-    -- Build the function body using a table for efficient concatenation
-    local body = "local context = ...\nlocal parts = {}\n"
-    for _, chunk in ipairs(chunks) do
-        body = body .. "table.insert(parts, " .. chunk .. ")\n"
-    end
-    body = body .. "return table.concat(parts)"
+    -- Finish the function body
+    table.insert(body_parts, "return table.concat(parts)")
+
+    -- Build the complete function body
+    local body = table.concat(body_parts, "\n")
     local chunk, load_err = load(body)
     if not chunk then
         error("Failed to compile template: " .. load_err)
     end
 
     -- Format the body for pretty printing
-    local formatted_body = "local context = ...\n\nlocal parts = {}\n"
-    for _, chunk in ipairs(chunks) do
-        formatted_body = formatted_body .. "table.insert(parts, " .. chunk .. ")\n"
-    end
-    formatted_body = formatted_body .. "\nreturn table.concat(parts)"
+    local formatted_body = table.concat(body_parts, "\n")
 
     -- Return a table with render function and the formatted code
     local result = {

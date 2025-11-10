@@ -1,6 +1,122 @@
 # Nibiru Templates
 
-Nibiru provides a powerful component-based template system optimized for AI development. Templates compile to efficient Lua functions with predictable structure and minimal syntax.
+Nibiru provides the core control flow needed for template engines and a powerful component-based template system optimized for AI development. Templates compile to efficient Lua functions with predictable structure and minimal syntax.
+
+## Control Flow
+
+Nibiru templates support conditional rendering using `{% if condition %}...{% endif %}` blocks.
+
+### Basic Conditional Rendering
+
+Use `{% if condition %}` to conditionally render content:
+
+```lua
+local template = Template([[
+<div>
+  <h1>Welcome</h1>
+  {% if user.is_admin %}
+  <p>You have admin privileges.</p>
+  {% endif %}
+</div>
+]])
+
+local result = template({
+  user = { is_admin = true }
+})
+```
+
+Output:
+```html
+<div>
+  <h1>Welcome</h1>
+  <p>You have admin privileges.</p>
+</div>
+```
+
+When the condition is false, the content is not rendered:
+
+```lua
+local result = template({
+  user = { is_admin = false }
+})
+```
+
+Output:
+```html
+<div>
+  <h1>Welcome</h1>
+</div>
+```
+
+### Conditional Expressions
+
+Conditions support the full range of Lua expressions:
+
+```lua
+{% if user.age >= 18 %}
+<p>You are an adult.</p>
+{% endif %}
+
+{% if user.role == "admin" or user.role == "moderator" %}
+<p>You have elevated permissions.</p>
+{% endif %}
+
+{% if not user.banned %}
+<p>Welcome back!</p>
+{% endif %}
+```
+
+### Complex Conditions
+
+Combine multiple conditions using logical operators:
+
+```lua
+{% if user.logged_in and user.subscription.active %}
+<p>Access granted to premium content.</p>
+{% endif %}
+
+{% if count > 0 or show_empty %}
+<p>Total items: {{count}}</p>
+{% endif %}
+```
+
+### Property Access in Conditions
+
+Access nested properties and use default values:
+
+```lua
+{% if user.profile.settings.notifications %}
+<p>Notifications enabled.</p>
+{% endif %}
+
+{% if user.name or "Anonymous" == "Alice" %}
+<p>Hello Alice!</p>
+{% endif %}
+```
+
+### Control Flow in Components
+
+Control flow works within component definitions:
+
+```lua
+Template.component("UserStatus", [[
+<div class="status">
+  {% if user.online %}
+  <span class="online">● Online</span>
+  {% else %}
+  <span class="offline">● Offline</span>
+  {% endif %}
+</div>
+]])
+```
+
+### Error Handling
+
+Invalid `{% if %}` syntax will result in clear error messages:
+
+- `{% if %}` - Missing condition
+- `{% if condition %}` without matching `{% endif %}` - Unclosed block
+- Nested `{% if %}` blocks - Not yet supported (will be added in future versions)
 
 ## Component System
 
@@ -163,7 +279,14 @@ local template = Template([[
 local result = template({
   user = { name = "Alice" }
 })
--- Output: <div class="welcome"><h1>Hello Alice!</h1><button>Get Started</button></div>
+```
+
+Output:
+```html
+<div class="welcome">
+  <h1>Hello Alice!</h1>
+  <button>Get Started</button>
+</div>
 ```
 
 Components are inlined during compilation for maximum performance - no runtime component resolution overhead.
