@@ -16,6 +16,11 @@ function Template.component(name, template_string)
     component_registry[name] = template_string
 end
 
+--- Clear all registered components (for testing).
+function Template.clear_components()
+    component_registry = {}
+end
+
 --- Escape a string for safe inclusion in Lua double-quoted string literals.
 ---@param s string String to escape
 ---@return string Escaped string wrapped in quotes
@@ -39,9 +44,34 @@ local function parse_expr(parser)
     end
 end
 
+--- Evaluate an attribute value that may contain expressions
+---@param value string Raw attribute value that may contain {{expressions}}
+---@param parser table Current parser state for error reporting
+---@return string Lua code that evaluates to the attribute value at render time
+local function evaluate_attribute_value(value, parser)
+    -- If the value contains expressions, we need to generate code to evaluate them
+    -- For now, handle simple case of entire value being an expression
+    if value:match("^{{.*}}$") then
+        -- Extract the expression content
+        local expr = value:match("^{{(.*)}}$")
+        if expr then
+            -- For simple variable access like {{user.name}}, generate context access code
+            -- Split on dots to handle nested access
+            local parts = {}
+            for part in expr:gmatch("[^.]+") do
+                table.insert(parts, string.format("[%q]", part))
+            end
+            local access_code = "context" .. table.concat(parts)
+            return string.format('tostring(%s or "")', access_code)
+        end
+    end
+    -- For non-expression values, just return the literal string
+    return escape_lua_string(value)
+end
+
 --- Compile a component template with provided attributes.
 ---@param component_template string The component's template string
----@param attributes table<string, string> Attribute values to inject into the component
+---@param attributes table<string, table> Attribute values to inject into the component (each value is {type="string"|"code", value=string})
 ---@return table Array of compiled chunks for the component
 local function compile_component(component_template, attributes)
     -- Compile component template with attributes as additional context
@@ -57,22 +87,115 @@ local function compile_component(component_template, attributes)
         elseif token.type == "EXPR_START" then
             component_parser.pos = component_parser.pos + 1
             local var_name = parse_expr(component_parser)
-            if component_parser.pos > #component_tokens or component_tokens[component_parser.pos].type ~= "EXPR_END" then
+            if
+                component_parser.pos > #component_tokens
+                or component_tokens[component_parser.pos].type ~= "EXPR_END"
+            then
                 error("Expected }} after expression in component")
             end
             component_parser.pos = component_parser.pos + 1
 
             -- Check if this is an attribute, otherwise use normal context access
             if attributes[var_name] then
-                table.insert(chunks, escape_lua_string(attributes[var_name]))
+                -- Attributes may be strings or Lua code marked with __CODE__
+                local attr_value = attributes[var_name]
+                if
+                    type(attr_value) == "string"
+                    and attr_value:sub(1, 8) == "__CODE__"
+                then
+                    -- This is Lua code, insert it directly
+                    table.insert(chunks, attr_value:sub(9))
+                else
+                    -- String literal, escape it
+                    table.insert(chunks, escape_lua_string(attr_value))
+                end
             else
                 -- Generate Lua code for safe table access and tostring conversion
-                table.insert(chunks, string.format('tostring(context[%q] or "")', var_name))
+                table.insert(
+                    chunks,
+                    string.format('tostring(context[%q] or "")', var_name)
+                )
+            end
+        elseif token.type == "COMPONENT_START" then
+            -- Handle component usage within component template (composition)
+            component_parser.pos = component_parser.pos + 1
+            if
+                component_parser.pos > #component_tokens
+                or component_tokens[component_parser.pos].type ~= "COMPONENT_NAME"
+            then
+                error("Expected component name after < in component")
+            end
+            local sub_component_name = component_tokens[component_parser.pos].value
+            component_parser.pos = component_parser.pos + 1
+
+            -- Check if sub-component is registered
+            local sub_component_template = component_registry[sub_component_name]
+            if not sub_component_template then
+                error("Component '" .. sub_component_name .. "' is not registered")
+            end
+
+            -- Parse attributes for sub-component
+            local sub_attributes = {}
+            if
+                component_parser.pos <= #component_tokens
+                and component_tokens[component_parser.pos].type == "COMPONENT_ATTRS"
+            then
+                local attr_table = component_tokens[component_parser.pos].value
+                for attr_name, attr_info in pairs(attr_table) do
+                    if attr_info.type == "string" then
+                        sub_attributes[attr_name] = attr_info.value
+                    elseif attr_info.type == "expression" then
+                        -- For sub-component attributes, evaluate in the current component's context
+                        local parts = {}
+                        for part in attr_info.value:gmatch("[^.]+") do
+                            table.insert(parts, string.format("[%q]", part))
+                        end
+                        sub_attributes[attr_name] = "__CODE__"
+                            .. "tostring(context"
+                            .. table.concat(parts)
+                            .. ' or "")'
+                    end
+                end
+                component_parser.pos = component_parser.pos + 1
+            end
+
+            -- Handle self-closing
+            local is_self_closing = false
+            if component_parser.pos <= #component_tokens then
+                if
+                    component_tokens[component_parser.pos].type
+                    == "COMPONENT_SELF_CLOSE"
+                then
+                    is_self_closing = true
+                elseif
+                    component_tokens[component_parser.pos].type == "COMPONENT_OPEN"
+                then
+                    is_self_closing = false
+                else
+                    error("Expected component tag closure in component")
+                end
+                component_parser.pos = component_parser.pos + 1
+            end
+
+            if is_self_closing then
+                -- Inline the sub-component
+                local sub_component_chunks =
+                    compile_component(sub_component_template, sub_attributes)
+                for _, chunk in ipairs(sub_component_chunks) do
+                    table.insert(chunks, chunk)
+                end
+            else
+                error("Non-self-closing sub-components not yet supported")
             end
         elseif token.type == "STMT_START" then
             error("Statements not yet supported in components")
         else
-            error("Unexpected token in component: " .. token.type .. " at position " .. component_parser.pos)
+            error(
+                "Unexpected token in component: "
+                    .. token.type
+                    .. " at position "
+                    .. component_parser.pos
+            )
         end
     end
 
@@ -116,16 +239,28 @@ local function compile(template_str)
                 error("Component '" .. component_name .. "' is not registered")
             end
 
-            -- Parse attributes if present (attr="value" or attr='value')
+            -- Parse attributes if present
             local attributes = {}
-            if parser.pos <= #tokens and tokens[parser.pos].type == "COMPONENT_ATTRS" then
-                local attr_string = tokens[parser.pos].value
-                -- Simple attribute parsing: attr="value" or attr='value'
-                for attr, value in attr_string:gmatch('([a-zA-Z_][a-zA-Z0-9_]*)="([^"]*)"') do
-                    attributes[attr] = value
-                end
-                for attr, value in attr_string:gmatch("([a-zA-Z_][a-zA-Z0-9_]*)='([^']*)'") do
-                    attributes[attr] = value
+            if
+                parser.pos <= #tokens
+                and tokens[parser.pos].type == "COMPONENT_ATTRS"
+            then
+                local attr_table = tokens[parser.pos].value
+                for attr_name, attr_info in pairs(attr_table) do
+                    if attr_info.type == "string" then
+                        -- String literals are passed as-is (will be escaped when used)
+                        attributes[attr_name] = attr_info.value
+                    elseif attr_info.type == "expression" then
+                        -- Expressions are stored as Lua code with a special marker
+                        local parts = {}
+                        for part in attr_info.value:gmatch("[^.]+") do
+                            table.insert(parts, string.format("[%q]", part))
+                        end
+                        attributes[attr_name] = "__CODE__"
+                            .. "tostring(context"
+                            .. table.concat(parts)
+                            .. ' or "")'
+                    end
                 end
                 parser.pos = parser.pos + 1
             end
@@ -145,7 +280,9 @@ local function compile(template_str)
 
             if is_self_closing then
                 -- Inline the component template with attributes as context
-                local component_chunks = compile_component(component_template, attributes)
+                -- Attributes are already evaluated during parsing
+                local component_chunks =
+                    compile_component(component_template, attributes)
                 for _, chunk in ipairs(component_chunks) do
                     table.insert(chunks, chunk)
                 end
@@ -153,7 +290,6 @@ local function compile(template_str)
                 -- For now, only support self-closing components
                 error("Non-self-closing components not yet supported")
             end
-
         elseif token.type == "STMT_START" then
             error("Statements not yet supported")
         else

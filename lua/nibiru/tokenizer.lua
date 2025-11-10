@@ -136,9 +136,7 @@ function Tokenizer.tokenize(template_str)
 
         if delimiter_type == "end" then
             break
-        end
-
-        if delimiter_type == "component" then
+        elseif delimiter_type == "component" then
             -- Parse component opening tag: <ComponentName attr="value" />
             table.insert(tokens, {type = "COMPONENT_START"})
             pos = next_pos + 1
@@ -158,11 +156,53 @@ function Tokenizer.tokenize(template_str)
 
             table.insert(tokens, {type = "COMPONENT_NAME", value = component_name})
 
-            -- Parse attributes (simplified for now)
+            -- Parse attributes (attr="value", attr='value', or attr=expression)
             local attr_start = #component_name + 1
-            local attributes = tag_content:sub(attr_start):match("^%s*(.-)%s*$")
-            if attributes and attributes ~= "" then
-                table.insert(tokens, {type = "COMPONENT_ATTRS", value = attributes})
+            local attr_string = tag_content:sub(attr_start):match("^%s*(.-)%s*$")
+            if attr_string and attr_string ~= "" then
+                -- Parse individual attributes, handling quoted values with spaces
+                local parsed_attrs = {}
+                local pos = 1
+                while pos <= #attr_string do
+                    -- Skip whitespace
+                    pos = attr_string:find("[^%s]", pos) or (#attr_string + 1)
+                    if pos > #attr_string then break end
+
+                    -- Find attr=
+                    local attr_start_pos = pos
+                    local equal_pos = attr_string:find("=", pos)
+                    if not equal_pos then break end
+
+                    local attr = attr_string:sub(attr_start_pos, equal_pos - 1):match("^%s*(.-)%s*$")
+                    pos = equal_pos + 1
+
+                    -- Find the value (handle quoted strings)
+                    local value
+                    if attr_string:sub(pos, pos) == '"' or attr_string:sub(pos, pos) == "'" then
+                        -- Quoted string
+                        local quote = attr_string:sub(pos, pos)
+                        pos = pos + 1
+                        local value_start = pos
+                        while pos <= #attr_string and attr_string:sub(pos, pos) ~= quote do
+                            if attr_string:sub(pos, pos) == "\\" then
+                                pos = pos + 1 -- Skip escaped char
+                            end
+                            pos = pos + 1
+                        end
+                        value = attr_string:sub(value_start, pos - 1)
+                        pos = pos + 1 -- Skip closing quote
+                        parsed_attrs[attr] = { type = "string", value = value }
+                    else
+                        -- Unquoted expression (until next space or end)
+                        local value_start = pos
+                        while pos <= #attr_string and attr_string:sub(pos, pos) ~= " " do
+                            pos = pos + 1
+                        end
+                        value = attr_string:sub(value_start, pos - 1)
+                        parsed_attrs[attr] = { type = "expression", value = value }
+                    end
+                end
+                table.insert(tokens, {type = "COMPONENT_ATTRS", value = parsed_attrs})
             end
 
             -- Check if self-closing
@@ -198,7 +238,7 @@ function Tokenizer.tokenize(template_str)
             table.insert(tokens, {type = "COMPONENT_NAME", value = component_name})
             pos = close_end + 1
 
-        elseif next_pos == start then
+        elseif delimiter_type == "expr" then
             -- Expression start
             table.insert(tokens, {type = "EXPR_START"})
             pos = end_start + 1
@@ -218,7 +258,7 @@ function Tokenizer.tokenize(template_str)
 
             table.insert(tokens, {type = "EXPR_END"})
             pos = expr_end_pos + 1
-        elseif next_pos == stmt_start then
+        elseif delimiter_type == "stmt" then
             -- Statement start
             table.insert(tokens, {type = "STMT_START"})
             pos = stmt_end_start + 1
@@ -239,7 +279,7 @@ function Tokenizer.tokenize(template_str)
             table.insert(tokens, {type = "STMT_END"})
             pos = stmt_end_pos + 1
         end
-    end
+    end  -- closes the while loop
 
     return tokens
 end
