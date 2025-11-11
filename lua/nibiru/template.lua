@@ -462,10 +462,10 @@ local function compile(template_str)
                         prev_token = token
                     end
 
-                   local condition_expr = table.concat(condition_parts, " ")
-                   if condition_expr == "" then
-                       condition_expr = "true"  -- Default to true if no condition
-                   end
+                    local condition_expr = table.concat(condition_parts, " ")
+                    if condition_expr == "" then
+                        error("Empty if condition: {% if %} requires a condition expression")
+                    end
 
                    -- Start conditional block with template-language truthiness
                    table.insert(body_parts, string.format("if is_truthy((function(c) return %s end)(context)) then", condition_expr))
