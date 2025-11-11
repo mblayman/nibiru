@@ -426,11 +426,24 @@ local function compile(template_str)
                        parser.pos = parser.pos + 1
                    end
 
-                   if parser.pos > #tokens or tokens[parser.pos].type ~= "STMT_END" then
-                       error("Unclosed if statement")
-                   end
+                    if parser.pos > #tokens or tokens[parser.pos].type ~= "STMT_END" then
+                        error("Unclosed if statement")
+                    end
 
-                    -- Generate condition expression
+                    -- Validate condition syntax
+                    if #condition_tokens > 0 then
+                        local last_token = condition_tokens[#condition_tokens]
+                        -- Check for incomplete operators (operators at end without right operand)
+                        if last_token.type == "OPERATOR" or (last_token.type == "PUNCTUATION" and (last_token.value == "==" or last_token.value == "!=" or last_token.value == "<" or last_token.value == "<=" or last_token.value == ">" or last_token.value == ">=")) then
+                            error("Invalid syntax in if condition: incomplete expression '" .. last_token.value .. "' requires a right operand")
+                        end
+                        -- Check for incomplete boolean operators
+                        if last_token.type == "KEYWORD" and (last_token.value == "and" or last_token.value == "or" or last_token.value == "not") then
+                            error("Invalid syntax in if condition: '" .. last_token.value .. "' requires an operand")
+                        end
+                    end
+
+                     -- Generate condition expression
                     local condition_parts = {}
                     local prev_token = nil
                     for _, token in ipairs(condition_tokens) do

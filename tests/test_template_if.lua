@@ -251,7 +251,7 @@ function tests.test_if_endif_malformed_condition()
         template({ user = { name = "test" } })
     end)
     assert.is_false(success)
-    assert.match("malformed", err:lower())
+    assert.match("invalid syntax", err:lower())
 end
 
 return tests
