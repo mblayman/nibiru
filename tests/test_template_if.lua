@@ -159,11 +159,13 @@ More outer content
     local result = template({ outer = true, inner = true })
     assert.equal(
         [[
+
 Outer content
   
   Inner content
   
 More outer content
+
 ]],
         result
     )
