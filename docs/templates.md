@@ -118,6 +118,205 @@ Invalid `{% if %}` syntax will result in clear error messages:
 - `{% if condition %}` without matching `{% endif %}` - Unclosed block
 - Nested `{% if %}` blocks - Not yet supported (will be added in future versions)
 
+## Iteration with For Loops
+
+Nibiru templates support iteration over arrays and tables using `{% for variable in expression %}...{% endfor %}` blocks.
+
+### Basic Array Iteration
+
+Use `{% for item in items %}` to iterate over arrays:
+
+```lua
+local template = Template([[
+<ul>
+  {% for item in items %}
+  <li>{{ item.name }} - ${{ item.price }}</li>
+  {% endfor %}
+</ul>
+]])
+
+local result = template({
+  items = {
+    { name = "Apple", price = 1.50 },
+    { name = "Banana", price = 0.75 },
+    { name = "Orange", price = 2.00 }
+  }
+})
+```
+
+Output:
+```html
+<ul>
+  <li>Apple - $1.5</li>
+  <li>Banana - $0.75</li>
+  <li>Orange - $2</li>
+</ul>
+```
+
+### Key-Value Iteration
+
+Use `{% for key, value in pairs(data) %}` to iterate over table key-value pairs:
+
+```lua
+local template = Template([[
+<dl>
+  {% for key, value in pairs(user) %}
+  <dt>{{ key }}</dt>
+  <dd>{{ value }}</dd>
+  {% endfor %}
+</dl>
+]])
+
+local result = template({
+  user = {
+    name = "Alice",
+    age = 30,
+    role = "admin"
+  }
+})
+```
+
+Output:
+```html
+<dl>
+  <dt>name</dt>
+  <dd>Alice</dd>
+  <dt>age</dt>
+  <dd>30</dd>
+  <dt>role</dt>
+  <dd>admin</dd>
+</dl>
+```
+
+### Indexed Array Iteration
+
+Use `{% for index, item in ipairs(items) %}` to access both index and value:
+
+```lua
+local template = Template([[
+<table>
+  <tr><th>#</th><th>Item</th><th>Price</th></tr>
+  {% for index, item in ipairs(items) %}
+  <tr>
+    <td>{{ index }}</td>
+    <td>{{ item.name }}</td>
+    <td>${{ item.price }}</td>
+  </tr>
+  {% endfor %}
+</table>
+]])
+
+local result = template({
+  items = {
+    { name = "Apple", price = 1.50 },
+    { name = "Banana", price = 0.75 }
+  }
+})
+```
+
+Output:
+```html
+<table>
+  <tr><th>#</th><th>Item</th><th>Price</th></tr>
+  <tr>
+    <td>1</td>
+    <td>Apple</td>
+    <td>$1.5</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>Banana</td>
+    <td>$0.75</td>
+  </tr>
+</table>
+```
+
+### Empty Collections
+
+For loops handle empty collections gracefully - no output is generated:
+
+```lua
+local template = Template([[
+{% for item in items %}
+<p>{{ item }}</p>
+{% endfor %}
+{% if #items == 0 %}
+<p>No items found.</p>
+{% endif %}
+]])
+
+local result = template({ items = {} })
+```
+
+Output:
+```html
+<p>No items found.</p>
+```
+
+### Nested For Loops
+
+For loops can be nested for complex data structures:
+
+```lua
+local template = Template([[
+{% for category in categories %}
+<h2>{{ category.name }}</h2>
+<ul>
+  {% for item in category.items %}
+  <li>{{ item }}</li>
+  {% endfor %}
+</ul>
+{% endfor %}
+]])
+
+local result = template({
+  categories = {
+    { name = "Fruits", items = {"Apple", "Banana"} },
+    { name = "Vegetables", items = {"Carrot", "Broccoli"} }
+  }
+})
+```
+
+Output:
+```html
+<h2>Fruits</h2>
+<ul>
+  <li>Apple</li>
+  <li>Banana</li>
+</ul>
+<h2>Vegetables</h2>
+<ul>
+  <li>Carrot</li>
+  <li>Broccoli</li>
+</ul>
+```
+
+### Expression Support
+
+For loop expressions support the same syntax as if conditions:
+
+```lua
+{% for user in users %}
+{% if user.active %}
+<div class="user">{{ user.name }}</div>
+{% endif %}
+{% endfor %}
+
+{% for key, value in pairs(data or {}) %}
+<p>{{ key }}: {{ value }}</p>
+{% endfor %}
+```
+
+### Error Handling
+
+Invalid `{% for %}` syntax will result in clear error messages:
+
+- `{% for %}` - Missing variable and expression
+- `{% for item %}` - Missing `in` keyword and expression
+- `{% for item in %}` - Missing expression after `in`
+- `{% for item in items %}` without matching `{% endfor %}` - Unclosed block
+- `{% endfor %}` without matching `{% for %}` - Orphaned endfor
+
 ## Component System
 
 The template system is built around reusable components that can be composed together. Components are registered globally and can reference each other without explicit imports.
