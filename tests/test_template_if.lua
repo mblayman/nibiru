@@ -98,8 +98,13 @@ function tests.test_if_endif_multiple_conditions_in_template()
         show_footer = false
     })
     assert.equal([[
+
 <p>Admin panel</p>
+
+
 <p>Welcome Alice</p>
+
+
 ]], result)
 end
 
@@ -120,13 +125,14 @@ function tests.test_if_endif_with_html_content()
     assert.equal([[
 <div>
   <h1>Title</h1>
+  
   <div class="featured">
     <img src="featured.jpg" alt="Featured"/>
     <p>This is featured content</p>
   </div>
+  
   <p>Regular content</p>
-</div>
-]], result)
+</div>]], result)
 end
 
 function tests.test_if_endif_nested()
@@ -142,7 +148,9 @@ More outer content
     local result = template({ outer = true, inner = true })
     assert.equal([[
 Outer content
+  
   Inner content
+  
 More outer content
 ]], result)
 end
@@ -173,6 +181,7 @@ More outer content
     local result = template({ outer = true, inner = false })
     assert.equal([[
 Outer content
+
 More outer content
 ]], result)
 end
