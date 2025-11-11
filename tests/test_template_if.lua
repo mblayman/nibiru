@@ -197,9 +197,11 @@ More outer content
     local result = template({ outer = true, inner = false })
     assert.equal(
         [[
-Outer content
 
+Outer content
+  
 More outer content
+
 ]],
         result
     )
