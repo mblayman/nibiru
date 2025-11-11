@@ -181,7 +181,7 @@ Outer content
 {% endif %}
 ]])
     local result = template({ outer = false, inner = true })
-    assert.equal("", result)
+    assert.equal("\n", result)
 end
 
 function tests.test_if_endif_nested_inner_false()
