@@ -301,7 +301,7 @@ function tests.test_for_endfor_nil_collection()
     local result = template({ items = nil })
     assert.equal(
         [[
-<p></p>
+
 ]],
         result
     )
