@@ -497,19 +497,36 @@ local function compile(template_str)
                         error("Unclosed endif statement")
                     end
                 elseif stmt_token.type == "FOR_START" then
-                    -- Parse the for loop: {% for var in collection %}
+                    -- Parse the for loop: {% for var in collection %} or {% for key, value in pairs(collection) %}
                     parser.pos = parser.pos + 1
 
-                    -- Expect variable name
+                    -- Check if this is key-value iteration (has comma)
+                    local is_key_value = false
+                    local loop_var1, loop_var2
+
+                    -- Expect first variable name
                     if parser.pos > #tokens or tokens[parser.pos].type ~= "IDENTIFIER" then
                         error("Expected variable name after 'for'")
                     end
-                    local loop_var = tokens[parser.pos].value
+                    loop_var1 = tokens[parser.pos].value
                     parser.pos = parser.pos + 1
+
+                    -- Check for comma (indicates key-value iteration)
+                    if parser.pos <= #tokens and tokens[parser.pos].type == "PUNCTUATION" and tokens[parser.pos].value == "," then
+                        is_key_value = true
+                        parser.pos = parser.pos + 1
+
+                        -- Expect second variable name
+                        if parser.pos > #tokens or tokens[parser.pos].type ~= "IDENTIFIER" then
+                            error("Expected second variable name after comma in key-value for loop")
+                        end
+                        loop_var2 = tokens[parser.pos].value
+                        parser.pos = parser.pos + 1
+                    end
 
                     -- Expect 'in' keyword
                     if parser.pos > #tokens or tokens[parser.pos].type ~= "KEYWORD" or tokens[parser.pos].value ~= "in" then
-                        error("Expected 'in' keyword after loop variable")
+                        error("Expected 'in' keyword after loop variable(s)")
                     end
                     parser.pos = parser.pos + 1
 
@@ -524,10 +541,23 @@ local function compile(template_str)
                         error("Unclosed for statement")
                     end
 
+                    -- For key-value iteration, extract the inner expression from pairs(...)
+                    local inner_collection_tokens = collection_tokens
+                    if is_key_value and #collection_tokens >= 3 and
+                       collection_tokens[1].type == "KEYWORD" and collection_tokens[1].value == "pairs" and
+                       collection_tokens[2].type == "PUNCTUATION" and collection_tokens[2].value == "(" and
+                       collection_tokens[#collection_tokens].type == "PUNCTUATION" and collection_tokens[#collection_tokens].value == ")" then
+                        -- Extract tokens between pairs( and )
+                        inner_collection_tokens = {}
+                        for i = 3, #collection_tokens - 1 do
+                            table.insert(inner_collection_tokens, collection_tokens[i])
+                        end
+                    end
+
                     -- Generate collection expression
                     local collection_parts = {}
                     local prev_token = nil
-                    for _, token in ipairs(collection_tokens) do
+                    for _, token in ipairs(inner_collection_tokens) do
                         -- Add space between tokens unless this token is a dot or follows a dot
                         if #collection_parts > 0 and not (token.type == "PUNCTUATION" and token.value == ".") and not (prev_token and prev_token.type == "PUNCTUATION" and prev_token.value == ".") then
                             collection_parts[#collection_parts] = collection_parts[#collection_parts] .. " "
@@ -562,8 +592,15 @@ local function compile(template_str)
                     end
 
                     -- Generate for loop code
-                    table.insert(body_parts, string.format("for _, %s in ipairs((function(c) return %s end)(context) or {}) do", loop_var, collection_expr))
-                    table.insert(body_parts, string.format("local loop_context = setmetatable({%s = %s}, {__index = context})", loop_var, loop_var))
+                    if is_key_value then
+                        -- Key-value iteration: for key, value in pairs(collection)
+                        table.insert(body_parts, string.format("for %s, %s in pairs((function(c) return %s end)(context) or {}) do", loop_var1, loop_var2, collection_expr))
+                        table.insert(body_parts, string.format("local loop_context = setmetatable({%s = %s, %s = %s}, {__index = context})", loop_var1, loop_var1, loop_var2, loop_var2))
+                    else
+                        -- Array iteration: for _, item in ipairs(collection)
+                        table.insert(body_parts, string.format("for _, %s in ipairs((function(c) return %s end)(context) or {}) do", loop_var1, collection_expr))
+                        table.insert(body_parts, string.format("local loop_context = setmetatable({%s = %s}, {__index = context})", loop_var1, loop_var1))
+                    end
                     table.insert(body_parts, "context = loop_context")
                     table.insert(conditional_stack, "for")  -- Track for loops
 

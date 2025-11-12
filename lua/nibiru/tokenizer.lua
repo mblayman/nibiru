@@ -65,7 +65,7 @@ local function tokenize_stmt(input)
                 table.insert(tokens, {type = "FOR_START"})
             elseif word == "endfor" then
                 table.insert(tokens, {type = "FOR_END"})
-            elseif word == "or" or word == "and" or word == "not" or word == "true" or word == "false" or word == "nil" or word == "in" then
+            elseif word == "or" or word == "and" or word == "not" or word == "true" or word == "false" or word == "nil" or word == "in" or word == "pairs" then
                 -- Logical operators, boolean literals, and for loop keywords
                 table.insert(tokens, {type = "KEYWORD", value = word})
             else
@@ -140,7 +140,7 @@ local function tokenize_stmt(input)
                 table.insert(tokens, {type = "PUNCTUATION", value = "."})
                 pos = pos + 1
             end
-        elseif c == "(" or c == ")" then
+        elseif c == "(" or c == ")" or c == "," then
             table.insert(tokens, {type = "PUNCTUATION", value = c})
             pos = pos + 1
         elseif c:match("%d") then
