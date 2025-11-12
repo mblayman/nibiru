@@ -18,9 +18,13 @@ function tests.test_for_endfor_basic_array()
     local result = template({ items = {"Apple", "Banana", "Orange"} })
     assert.equal([[
 <ul>
+  
   <li>Apple</li>
+  
   <li>Banana</li>
+  
   <li>Orange</li>
+  
 </ul>
 ]], result)
 end
@@ -36,7 +40,7 @@ function tests.test_for_endfor_empty_array()
     local result = template({ items = {} })
     assert.equal([[
 <ul>
-
+  
 </ul>
 ]], result)
 end

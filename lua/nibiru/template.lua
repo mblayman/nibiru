@@ -484,20 +484,104 @@ local function compile(template_str)
                    table.insert(body_parts, string.format("if is_truthy((function(c) return %s end)(context)) then", condition_expr))
                    table.insert(conditional_stack, true)
 
-               elseif stmt_token.type == "IF_END" then
-                   -- End conditional block
-                   if #conditional_stack == 0 then
-                       error("Unexpected endif without matching if")
-                   end
-                   table.remove(conditional_stack)
-                   table.insert(body_parts, "end")
-                   parser.pos = parser.pos + 1
+                elseif stmt_token.type == "IF_END" then
+                    -- End conditional block
+                    if #conditional_stack == 0 then
+                        error("Unexpected endif without matching if")
+                    end
+                    table.remove(conditional_stack)
+                    table.insert(body_parts, "end")
+                    parser.pos = parser.pos + 1
 
-                   if parser.pos > #tokens or tokens[parser.pos].type ~= "STMT_END" then
-                       error("Unclosed endif statement")
-                   end
-               else
-                   error("Unknown statement type: " .. stmt_token.type)
+                    if parser.pos > #tokens or tokens[parser.pos].type ~= "STMT_END" then
+                        error("Unclosed endif statement")
+                    end
+                elseif stmt_token.type == "FOR_START" then
+                    -- Parse the for loop: {% for var in collection %}
+                    parser.pos = parser.pos + 1
+
+                    -- Expect variable name
+                    if parser.pos > #tokens or tokens[parser.pos].type ~= "IDENTIFIER" then
+                        error("Expected variable name after 'for'")
+                    end
+                    local loop_var = tokens[parser.pos].value
+                    parser.pos = parser.pos + 1
+
+                    -- Expect 'in' keyword
+                    if parser.pos > #tokens or tokens[parser.pos].type ~= "KEYWORD" or tokens[parser.pos].value ~= "in" then
+                        error("Expected 'in' keyword after loop variable")
+                    end
+                    parser.pos = parser.pos + 1
+
+                    -- Collect collection expression tokens until STMT_END
+                    local collection_tokens = {}
+                    while parser.pos <= #tokens and tokens[parser.pos].type ~= "STMT_END" do
+                        table.insert(collection_tokens, tokens[parser.pos])
+                        parser.pos = parser.pos + 1
+                    end
+
+                    if parser.pos > #tokens or tokens[parser.pos].type ~= "STMT_END" then
+                        error("Unclosed for statement")
+                    end
+
+                    -- Generate collection expression
+                    local collection_parts = {}
+                    local prev_token = nil
+                    for _, token in ipairs(collection_tokens) do
+                        -- Add space between tokens unless this token is a dot or follows a dot
+                        if #collection_parts > 0 and not (token.type == "PUNCTUATION" and token.value == ".") and not (prev_token and prev_token.type == "PUNCTUATION" and prev_token.value == ".") then
+                            collection_parts[#collection_parts] = collection_parts[#collection_parts] .. " "
+                        end
+
+                        if token.type == "IDENTIFIER" then
+                            -- Don't add "c." prefix if this identifier follows a dot (property access)
+                            if prev_token and prev_token.type == "PUNCTUATION" and prev_token.value == "." then
+                                table.insert(collection_parts, token.value)
+                            else
+                                table.insert(collection_parts, "c." .. token.value)
+                            end
+                        elseif token.type == "LITERAL" then
+                            if type(token.value) == "string" then
+                                table.insert(collection_parts, string.format("%q", token.value))
+                            else
+                                table.insert(collection_parts, tostring(token.value))
+                            end
+                        elseif token.type == "OPERATOR" then
+                            table.insert(collection_parts, token.value)
+                        elseif token.type == "PUNCTUATION" then
+                            table.insert(collection_parts, token.value)
+                        else
+                            table.insert(collection_parts, token.value or "")
+                        end
+                        prev_token = token
+                    end
+
+                    local collection_expr = table.concat(collection_parts, " ")
+                    if collection_expr == "" then
+                        error("Empty for collection: {% for var in %} requires a collection expression")
+                    end
+
+                    -- Generate for loop code
+                    table.insert(body_parts, string.format("for _, %s in ipairs((function(c) return %s end)(context) or {}) do", loop_var, collection_expr))
+                    table.insert(body_parts, string.format("local loop_context = setmetatable({%s = %s}, {__index = context})", loop_var, loop_var))
+                    table.insert(body_parts, "context = loop_context")
+                    table.insert(conditional_stack, "for")  -- Track for loops
+
+                elseif stmt_token.type == "FOR_END" then
+                    -- End for loop block
+                    if #conditional_stack == 0 or conditional_stack[#conditional_stack] ~= "for" then
+                        error("Unexpected endfor without matching for")
+                    end
+                    table.remove(conditional_stack)
+                    table.insert(body_parts, "context = getmetatable(context).__index")  -- Restore original context
+                    table.insert(body_parts, "end")
+                    parser.pos = parser.pos + 1
+
+                    if parser.pos > #tokens or tokens[parser.pos].type ~= "STMT_END" then
+                        error("Unclosed endfor statement")
+                    end
+                else
+                    error("Unknown statement type: " .. stmt_token.type)
                end
 
                -- Skip the STMT_END
@@ -507,9 +591,14 @@ local function compile(template_str)
           end
     end
 
-    -- Check for unclosed conditionals
+    -- Check for unclosed conditionals and loops
     if #conditional_stack > 0 then
-        error("Unclosed if statement(s)")
+        local unclosed_type = conditional_stack[#conditional_stack]
+        if unclosed_type == "for" then
+            error("Unclosed for statement(s)")
+        else
+            error("Unclosed if statement(s)")
+        end
     end
 
     -- Finish the function body
