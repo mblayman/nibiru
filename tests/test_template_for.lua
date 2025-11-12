@@ -259,7 +259,7 @@ function tests.test_for_endfor_missing_variable()
     end)
     assert.is_false(success)
     assert.is_string(err)
-    assert.match("invalid", err:lower())
+    assert.match("expected", err:lower())
 end
 
 function tests.test_for_endfor_missing_in_keyword()
