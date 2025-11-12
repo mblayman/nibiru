@@ -317,6 +317,202 @@ Invalid `{% for %}` syntax will result in clear error messages:
 - `{% for item in items %}` without matching `{% endfor %}` - Unclosed block
 - `{% endfor %}` without matching `{% for %}` - Orphaned endfor
 
+## Filter Pipelines
+
+Nibiru templates support filter pipelines using the `|>` operator to transform values through a series of functions. Filters provide a clean way to format, transform, and manipulate data directly in templates.
+
+### Basic Filter Syntax
+
+Use the pipeline operator `|>` to apply filters to values:
+
+```lua
+local template = Template([[
+<div>
+  <h1>{{ title |> uppercase }}</h1>
+  <p>{{ description |> truncate(100) }}</p>
+  <span>{{ count |> default("0") }} items</span>
+</div>
+]])
+
+local result = template({
+  title = "welcome to our site",
+  description = "This is a very long description that should be truncated to prevent layout issues in the UI.",
+  count = nil
+})
+```
+
+Output:
+```html
+<div>
+  <h1>WELCOME TO OUR SITE</h1>
+  <p>This is a very long description that should be truncated to prevent layout issues in the UI.</p>
+  <span>0 items</span>
+</div>
+```
+
+### Chaining Multiple Filters
+
+Apply multiple filters in sequence by chaining `|>` operators:
+
+```lua
+{{ name |> lowercase |> capitalize }}
+{{ text |> strip |> truncate(50) |> uppercase }}
+```
+
+Filters are applied left-to-right, so `value |> filter1 |> filter2` is equivalent to `filter2(filter1(value))`.
+
+### Built-in Filters
+
+Nibiru provides several built-in filters for common transformations:
+
+#### String Filters
+
+- **`uppercase`**: Convert to uppercase
+  ```lua
+  {{ "hello" |> uppercase }}  -- "HELLO"
+  ```
+
+- **`lowercase`**: Convert to lowercase
+  ```lua
+  {{ "HELLO" |> lowercase }}  -- "hello"
+  ```
+
+- **`capitalize`**: Capitalize first letter, lowercase rest
+  ```lua
+  {{ "HELLO WORLD" |> capitalize }}  -- "Hello world"
+  ```
+
+- **`truncate(length)`**: Truncate string to specified length
+  ```lua
+  {{ "This is a long string" |> truncate(10) }}  -- "This is a l..."
+  ```
+
+#### Array/Object Filters
+
+- **`length`**: Get length of array or string
+  ```lua
+  {{ items |> length }}        -- 5 (for array with 5 elements)
+  {{ "hello" |> length }}       -- 5 (string length)
+  ```
+
+- **`first`**: Get first element of array
+  ```lua
+  {{ items |> first }}          -- items[1]
+  ```
+
+- **`last`**: Get last element of array
+  ```lua
+  {{ items |> last }}           -- items[#items]
+  ```
+
+- **`reverse`**: Reverse array elements
+  ```lua
+  {{ {1,2,3} |> reverse }}      -- {3,2,1}
+  ```
+
+#### Utility Filters
+
+- **`default(value)`**: Return value or default if nil/false
+  ```lua
+  {{ user.name |> default("Anonymous") }}  -- user.name or "Anonymous"
+  ```
+
+- **`format(pattern)`**: Format value using string.format
+  ```lua
+  {{ 3.14159 |> format("%.2f") }}  -- "3.14"
+  {{ count |> format("%d items") }} -- "5 items"
+  ```
+
+### Filter Arguments
+
+Filters can accept arguments in parentheses:
+
+```lua
+{{ text |> truncate(50) }}
+{{ number |> format("%.2f") }}
+{{ value |> default("N/A") }}
+```
+
+Arguments can be literals, variables, or expressions:
+
+```lua
+{{ items |> truncate(max_length) }}
+{{ price |> format("%.2f" .. currency) }}
+```
+
+### Using Filters in Component Attributes
+
+Filters work in component attributes as well as template expressions:
+
+```lua
+Template.component("ProductCard", [[
+<div class="product">
+  <h3>{{ title |> capitalize }}</h3>
+  <p class="price">${{ price |> format("%.2f") }}</p>
+  <p class="desc">{{ description |> truncate(100) }}</p>
+</div>
+]])
+
+-- Usage
+local template = Template('<ProductCard title=product.title price=product.price description=product.desc/>')
+```
+
+### Custom Filters
+
+Register custom filters for domain-specific transformations:
+
+```lua
+-- Register a custom filter
+Template.register_filter("currency", function(value, symbol)
+    symbol = symbol or "$"
+    return string.format("%s%.2f", symbol, value)
+end)
+
+-- Use in templates
+{{ 29.99 |> currency }}        -- "$29.99"
+{{ 19.95 |> currency("€") }}    -- "€19.95"
+```
+
+Filter functions receive the value as the first argument, followed by any additional arguments passed in the template.
+
+### Filter Function Signature
+
+Custom filters should follow this pattern:
+
+```lua
+function my_filter(value, ...args)
+    -- Transform the value
+    return transformed_value
+end
+```
+
+Filters should:
+- Handle `nil` inputs gracefully
+- Return appropriate default values when transformation fails
+- Be pure functions (no side effects)
+
+### Error Handling
+
+Invalid filter usage results in clear error messages:
+
+- **Unknown filters**: `"Unknown filter 'badfilter'"`
+- **Wrong arguments**: `"Filter 'truncate' expects 1 argument, got 0"`
+- **Non-callable filters**: `"Filter 'uppercase' is not a function"`
+
+```lua
+-- These will cause errors:
+{{ value |> unknown_filter }}
+{{ value |> truncate }}           -- missing required argument
+{{ value |> truncate(10, 20) }}   -- too many arguments
+```
+
+### Performance Notes
+
+- Filters are resolved at compile time, not runtime
+- Filter pipelines generate efficient chained function calls
+- No performance penalty for unused filters
+- Custom filters should be efficient to avoid template rendering bottlenecks
+
 ## Component System
 
 The template system is built around reusable components that can be composed together. Components are registered globally and can reference each other without explicit imports.
