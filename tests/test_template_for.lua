@@ -199,8 +199,11 @@ function tests.test_for_endfor_with_complex_expressions()
     })
     assert.equal(
         [[
+
 <p>Apple - $1.1</p>
+
 <p>Banana - $0.55</p>
+
 ]],
         result
     )
