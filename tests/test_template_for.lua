@@ -15,8 +15,9 @@ function tests.test_for_endfor_basic_array()
   {% endfor %}
 </ul>
 ]])
-    local result = template({ items = {"Apple", "Banana", "Orange"} })
-    assert.equal([[
+    local result = template({ items = { "Apple", "Banana", "Orange" } })
+    assert.equal(
+        [[
 <ul>
   
   <li>Apple</li>
@@ -26,7 +27,9 @@ function tests.test_for_endfor_basic_array()
   <li>Orange</li>
   
 </ul>
-]], result)
+]],
+        result
+    )
 end
 
 function tests.test_for_endfor_empty_array()
@@ -38,11 +41,14 @@ function tests.test_for_endfor_empty_array()
 </ul>
 ]])
     local result = template({ items = {} })
-    assert.equal([[
+    assert.equal(
+        [[
 <ul>
   
 </ul>
-]], result)
+]],
+        result
+    )
 end
 
 function tests.test_for_endfor_key_value_pairs()
@@ -79,10 +85,11 @@ function tests.test_for_endfor_indexed_array()
     local result = template({
         items = {
             { name = "Apple" },
-            { name = "Banana" }
-        }
+            { name = "Banana" },
+        },
     })
-    assert.equal([[
+    assert.equal(
+        [[
 <table>
   <tr><th>#</th><th>Item</th></tr>
   
@@ -97,7 +104,9 @@ function tests.test_for_endfor_indexed_array()
   </tr>
   
 </table>
-]], result)
+]],
+        result
+    )
 end
 
 function tests.test_for_endfor_nested_loops()
@@ -113,22 +122,34 @@ function tests.test_for_endfor_nested_loops()
 ]])
     local result = template({
         categories = {
-            { name = "Fruits", items = {"Apple", "Banana"} },
-            { name = "Vegetables", items = {"Carrot", "Broccoli"} }
-        }
+            { name = "Fruits", items = { "Apple", "Banana" } },
+            { name = "Vegetables", items = { "Carrot", "Broccoli" } },
+        },
     })
-    assert.equal([[
+    assert.equal(
+        [[
+
 <h2>Fruits</h2>
 <ul>
+  
   <li>Apple</li>
+  
   <li>Banana</li>
+  
 </ul>
+
 <h2>Vegetables</h2>
 <ul>
+  
   <li>Carrot</li>
+  
   <li>Broccoli</li>
+  
 </ul>
-]], result)
+
+]],
+        result
+    )
 end
 
 function tests.test_for_endfor_with_expressions()
@@ -143,14 +164,17 @@ function tests.test_for_endfor_with_expressions()
         users = {
             { name = "Alice", active = true },
             { name = "Bob", active = false },
-            { name = "Charlie", active = true }
-        }
+            { name = "Charlie", active = true },
+        },
     })
-    assert.equal([[
+    assert.equal(
+        [[
 <div class="user">Alice</div>
 
 <div class="user">Charlie</div>
-]], result)
+]],
+        result
+    )
 end
 
 function tests.test_for_endfor_with_complex_expressions()
@@ -162,13 +186,16 @@ function tests.test_for_endfor_with_complex_expressions()
     local result = template({
         items = {
             { name = "Apple", price = 1.00 },
-            { name = "Banana", price = 0.50 }
-        }
+            { name = "Banana", price = 0.50 },
+        },
     })
-    assert.equal([[
+    assert.equal(
+        [[
 <p>Apple - $1.1</p>
 <p>Banana - $0.55</p>
-]], result)
+]],
+        result
+    )
 end
 
 function tests.test_for_endfor_variable_scope()
@@ -178,12 +205,18 @@ function tests.test_for_endfor_variable_scope()
 {% endfor %}
 <p>Outside: {{ item or "undefined" }}</p>
 ]])
-    local result = template({ items = {"A", "B"} })
-    assert.equal([[
+    local result = template({ items = { "A", "B" } })
+    assert.equal(
+        [[
+
 <p>Item: A</p>
+
 <p>Item: B</p>
+
 <p>Outside: undefined</p>
-]], result)
+]],
+        result
+    )
 end
 
 -- Error Path Tests
@@ -191,7 +224,7 @@ end
 function tests.test_for_endfor_unclosed_block()
     local success, err = pcall(function()
         local template = Template("{% for item in items %}<p>{{ item }}</p>")
-        template({ items = {"test"} })
+        template({ items = { "test" } })
     end)
     assert.is_false(success)
     assert.is_string(err)
@@ -211,7 +244,7 @@ end
 function tests.test_for_endfor_missing_variable()
     local success, err = pcall(function()
         local template = Template("{% for in items %}{{ item }}{% endfor %}")
-        template({ items = {"test"} })
+        template({ items = { "test" } })
     end)
     assert.is_false(success)
     assert.is_string(err)
@@ -221,7 +254,7 @@ end
 function tests.test_for_endfor_missing_in_keyword()
     local success, err = pcall(function()
         local template = Template("{% for item items %}{{ item }}{% endfor %}")
-        template({ items = {"test"} })
+        template({ items = { "test" } })
     end)
     assert.is_false(success)
     assert.is_string(err)
@@ -231,7 +264,7 @@ end
 function tests.test_for_endfor_missing_expression()
     local success, err = pcall(function()
         local template = Template("{% for item in %}{{ item }}{% endfor %}")
-        template({ items = {"test"} })
+        template({ items = { "test" } })
     end)
     assert.is_false(success)
     assert.is_string(err)
@@ -241,7 +274,7 @@ end
 function tests.test_for_endfor_empty_for_block()
     local success, err = pcall(function()
         local template = Template("{% for %}{{ item }}{% endfor %}")
-        template({ items = {"test"} })
+        template({ items = { "test" } })
     end)
     assert.is_false(success)
     assert.is_string(err)
@@ -255,9 +288,12 @@ function tests.test_for_endfor_nil_collection()
 {% endfor %}
 ]])
     local result = template({ items = nil })
-    assert.equal([[
+    assert.equal(
+        [[
 <p></p>
-]], result)
+]],
+        result
+    )
 end
 
 function tests.test_for_endfor_non_iterable()
@@ -271,3 +307,4 @@ function tests.test_for_endfor_non_iterable()
 end
 
 return tests
+
