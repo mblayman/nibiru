@@ -169,9 +169,17 @@ function tests.test_for_endfor_with_expressions()
     })
     assert.equal(
         [[
+
+
 <div class="user">Alice</div>
 
+
+
+
+
 <div class="user">Charlie</div>
+
+
 ]],
         result
     )
