@@ -289,7 +289,7 @@ function tests.test_for_endfor_empty_for_block()
     end)
     assert.is_false(success)
     assert.is_string(err)
-    assert.match("invalid", err:lower())
+    assert.match("expected", err:lower())
 end
 
 function tests.test_for_endfor_nil_collection()
