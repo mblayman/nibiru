@@ -279,7 +279,7 @@ function tests.test_for_endfor_missing_expression()
     end)
     assert.is_false(success)
     assert.is_string(err)
-    assert.match("invalid", err:lower())
+    assert.match("empty", err:lower())
 end
 
 function tests.test_for_endfor_empty_for_block()
