@@ -269,7 +269,7 @@ function tests.test_for_endfor_missing_in_keyword()
     end)
     assert.is_false(success)
     assert.is_string(err)
-    assert.match("invalid", err:lower())
+    assert.match("expected", err:lower())
 end
 
 function tests.test_for_endfor_missing_expression()
@@ -318,4 +318,3 @@ function tests.test_for_endfor_non_iterable()
 end
 
 return tests
-
