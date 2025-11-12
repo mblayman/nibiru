@@ -26,7 +26,7 @@ function tests.test_statement_if()
     local tokens = Tokenizer.tokenize("{% if true %}")
     assert.same(tokens, {
         {type = "STMT_START"},
-        {type = "IDENTIFIER", value = "if"},
+        {type = "IF_START"},
         {type = "KEYWORD", value = "true"},
         {type = "STMT_END"}
     })
@@ -89,12 +89,12 @@ function tests.test_mixed()
         {type = "EXPR_END"},
         {type = "TEXT", value = ", "},
         {type = "STMT_START"},
-        {type = "IDENTIFIER", value = "if"},
+        {type = "IF_START"},
         {type = "IDENTIFIER", value = "admin"},
         {type = "STMT_END"},
         {type = "TEXT", value = " welcome "},
         {type = "STMT_START"},
-        {type = "IDENTIFIER", value = "endif"},
+        {type = "IF_END"},
         {type = "STMT_END"}
     })
 end
