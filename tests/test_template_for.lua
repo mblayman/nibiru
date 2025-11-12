@@ -85,14 +85,17 @@ function tests.test_for_endfor_indexed_array()
     assert.equal([[
 <table>
   <tr><th>#</th><th>Item</th></tr>
+  
   <tr>
     <td>1</td>
     <td>Apple</td>
   </tr>
+  
   <tr>
     <td>2</td>
     <td>Banana</td>
   </tr>
+  
 </table>
 ]], result)
 end

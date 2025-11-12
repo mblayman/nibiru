@@ -541,16 +541,28 @@ local function compile(template_str)
                         error("Unclosed for statement")
                     end
 
-                    -- For key-value iteration, extract the inner expression from pairs(...)
+                    -- For key-value iteration, extract the inner expression from pairs(...) or ipairs(...)
                     local inner_collection_tokens = collection_tokens
-                    if is_key_value and #collection_tokens >= 3 and
-                       collection_tokens[1].type == "KEYWORD" and collection_tokens[1].value == "pairs" and
-                       collection_tokens[2].type == "PUNCTUATION" and collection_tokens[2].value == "(" and
-                       collection_tokens[#collection_tokens].type == "PUNCTUATION" and collection_tokens[#collection_tokens].value == ")" then
-                        -- Extract tokens between pairs( and )
-                        inner_collection_tokens = {}
-                        for i = 3, #collection_tokens - 1 do
-                            table.insert(inner_collection_tokens, collection_tokens[i])
+                    local use_pairs = false
+                    if is_key_value and #collection_tokens >= 3 then
+                        if collection_tokens[1].type == "KEYWORD" and collection_tokens[1].value == "pairs" and
+                           collection_tokens[2].type == "PUNCTUATION" and collection_tokens[2].value == "(" and
+                           collection_tokens[#collection_tokens].type == "PUNCTUATION" and collection_tokens[#collection_tokens].value == ")" then
+                            -- Extract tokens between pairs( and )
+                            inner_collection_tokens = {}
+                            for i = 3, #collection_tokens - 1 do
+                                table.insert(inner_collection_tokens, collection_tokens[i])
+                            end
+                            use_pairs = true
+                        elseif collection_tokens[1].type == "KEYWORD" and collection_tokens[1].value == "ipairs" and
+                               collection_tokens[2].type == "PUNCTUATION" and collection_tokens[2].value == "(" and
+                               collection_tokens[#collection_tokens].type == "PUNCTUATION" and collection_tokens[#collection_tokens].value == ")" then
+                            -- Extract tokens between ipairs( and )
+                            inner_collection_tokens = {}
+                            for i = 3, #collection_tokens - 1 do
+                                table.insert(inner_collection_tokens, collection_tokens[i])
+                            end
+                            use_pairs = false  -- Use ipairs for indexed iteration
                         end
                     end
 
@@ -593,8 +605,13 @@ local function compile(template_str)
 
                     -- Generate for loop code
                     if is_key_value then
-                        -- Key-value iteration: for key, value in pairs(collection)
-                        table.insert(body_parts, string.format("for %s, %s in pairs((function(c) return %s end)(context) or {}) do", loop_var1, loop_var2, collection_expr))
+                        if use_pairs then
+                            -- Key-value iteration: for key, value in pairs(collection)
+                            table.insert(body_parts, string.format("for %s, %s in pairs((function(c) return %s end)(context) or {}) do", loop_var1, loop_var2, collection_expr))
+                        else
+                            -- Indexed array iteration: for index, item in ipairs(collection)
+                            table.insert(body_parts, string.format("for %s, %s in ipairs((function(c) return %s end)(context) or {}) do", loop_var1, loop_var2, collection_expr))
+                        end
                         table.insert(body_parts, string.format("local loop_context = setmetatable({%s = %s, %s = %s}, {__index = context})", loop_var1, loop_var1, loop_var2, loop_var2))
                     else
                         -- Array iteration: for _, item in ipairs(collection)
