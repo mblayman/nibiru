@@ -6,6 +6,10 @@ local Tokenizer = require("nibiru.tokenizer")
 ---@type table<string, string>
 local component_registry = {}
 
+--- Filter registry: maps filter names to their functions
+---@type table<string, function>
+local filter_registry = {}
+
 --- Register a reusable component template.
 ---@param name string Component name (should start with capital letter)
 ---@param template_string string The component's template content
@@ -24,6 +28,24 @@ function Template.clear_components()
     component_registry = {}
 end
 
+--- Register a filter function.
+---@param name string Filter name
+---@param filter_func function Filter function
+function Template.register_filter(name, filter_func)
+    if filter_registry[name] then
+        error("Filter '" .. name .. "' is already registered")
+    end
+    if type(filter_func) ~= "function" then
+        error("Filter '" .. name .. "' must be a function")
+    end
+    filter_registry[name] = filter_func
+end
+
+--- Clear all registered filters (for testing).
+function Template.clear_filters()
+    filter_registry = {}
+end
+
 --- Escape a string for safe inclusion in Lua double-quoted string literals.
 ---@param s string String to escape
 ---@return string Escaped string wrapped in quotes
@@ -31,6 +53,141 @@ local function escape_lua_string(s)
     -- Escape for Lua double-quoted string literal
     s = s:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n"):gsub("\r", "\\r")
     return '"' .. s .. '"'
+end
+
+--- Parse a filter pipeline expression and generate Lua code.
+---@param expr_tokens table Array of expression tokens
+---@param attributes table<string, any> Optional attributes table for component context
+---@return string Lua code that evaluates the filter pipeline
+local function parse_filter_pipeline(expr_tokens, attributes)
+    -- Simple implementation for basic filter support
+    -- Look for |> operators and convert to function calls
+
+    local parts = {}
+    local i = 1
+    local current_expr = {}
+
+    while i <= #expr_tokens do
+        local token = expr_tokens[i]
+
+        if token.type == "OPERATOR" and token.value == "|>" then
+            -- Found a filter pipeline operator
+            -- The current_expr contains the value to filter
+            -- The next tokens should be the filter name and arguments
+
+            if #current_expr == 0 then
+                error("Expected expression before |> operator")
+            end
+
+            -- Parse filter name
+            i = i + 1
+            if i > #expr_tokens or expr_tokens[i].type ~= "IDENTIFIER" then
+                error("Expected filter name after |> operator")
+            end
+            local filter_name = expr_tokens[i].value
+
+            -- Check if filter exists
+            if not filter_registry[filter_name] then
+                error("Unknown filter '" .. filter_name .. "'")
+            end
+
+            -- Parse optional arguments
+            local args = {}
+            i = i + 1
+            if i <= #expr_tokens and expr_tokens[i].type == "PUNCTUATION" and expr_tokens[i].value == "(" then
+                -- Parse arguments until closing )
+                i = i + 1
+                local current_arg = {}
+                while i <= #expr_tokens and not (expr_tokens[i].type == "PUNCTUATION" and expr_tokens[i].value == ")") do
+                    if expr_tokens[i].type == "PUNCTUATION" and expr_tokens[i].value == "," then
+                        -- End of current argument
+                        if #current_arg > 0 then
+                            table.insert(args, table.concat(current_arg))
+                            current_arg = {}
+                        end
+                    else
+                        -- Add token to current argument
+                        if expr_tokens[i].type == "IDENTIFIER" then
+                            -- Check if this is an attribute (for component context)
+                            if attributes and attributes[expr_tokens[i].value] then
+                                -- Attributes may be strings or Lua code marked with __CODE__
+                                local attr_value = attributes[expr_tokens[i].value]
+                                if
+                                    type(attr_value) == "string"
+                                    and attr_value:sub(1, 8) == "__CODE__"
+                                then
+                                    -- This is Lua code, insert it directly
+                                    table.insert(current_arg, "(" .. attr_value:sub(9) .. ")")
+                                else
+                                    -- String literal
+                                    table.insert(current_arg, escape_lua_string(attr_value))
+                                end
+                            else
+                                table.insert(current_arg, "c." .. expr_tokens[i].value)
+                            end
+                        elseif expr_tokens[i].type == "LITERAL" then
+                            if type(expr_tokens[i].value) == "string" then
+                                table.insert(current_arg, string.format("%q", expr_tokens[i].value))
+                            else
+                                table.insert(current_arg, tostring(expr_tokens[i].value))
+                            end
+                        else
+                            table.insert(current_arg, expr_tokens[i].value or "")
+                        end
+                    end
+                    i = i + 1
+                end
+                -- Add the last argument if any
+                if #current_arg > 0 then
+                    table.insert(args, table.concat(current_arg))
+                end
+                if i > #expr_tokens or expr_tokens[i].value ~= ")" then
+                    error("Expected closing ) after filter arguments")
+                end
+                i = i + 1
+            end
+
+    -- Generate filter call
+    local value_expr = table.concat(current_expr)
+    local args_str = #args > 0 and ", " .. table.concat(args, ", ") or ""
+    local filter_call = string.format("fr[%q](%s%s)", filter_name, value_expr, args_str)
+
+            -- Reset for next part of pipeline
+            current_expr = {filter_call}
+        else
+            -- Regular token, add to current expression
+            if token.type == "IDENTIFIER" then
+                -- Check if this is an attribute (for component context)
+                if attributes and attributes[token.value] then
+                    -- Attributes may be strings or Lua code marked with __CODE__
+                    local attr_value = attributes[token.value]
+                    if
+                        type(attr_value) == "string"
+                        and attr_value:sub(1, 8) == "__CODE__"
+                    then
+                        -- This is Lua code, insert it directly
+                        table.insert(current_expr, "(" .. attr_value:sub(9) .. ")")
+                    else
+                        -- String literal
+                        table.insert(current_expr, escape_lua_string(attr_value))
+                    end
+                else
+                    table.insert(current_expr, "c." .. token.value)
+                end
+            elseif token.type == "LITERAL" then
+                if type(token.value) == "string" then
+                    table.insert(current_expr, string.format("%q", token.value))
+                else
+                    table.insert(current_expr, tostring(token.value))
+                end
+            else
+                table.insert(current_expr, token.value or "")
+            end
+            i = i + 1
+        end
+    end
+
+    return table.concat(current_expr)
 end
 
 --- Parse an identifier from expression tokens.
@@ -108,8 +265,26 @@ local function compile_component(component_template, attributes)
             end
             component_parser.pos = component_parser.pos + 1
 
-            -- For now, handle simple expressions only
-            if #expr_tokens == 1 and expr_tokens[1].type == "IDENTIFIER" then
+            -- Check if this expression contains filter pipelines
+            local has_filters = false
+            for _, token in ipairs(expr_tokens) do
+                if token.type == "OPERATOR" and token.value == "|>" then
+                    has_filters = true
+                    break
+                end
+            end
+
+            if has_filters then
+                -- Handle filter pipeline expressions
+                local filter_code = parse_filter_pipeline(expr_tokens, attributes)
+                table.insert(
+                    chunks,
+                    string.format(
+                        'tostring((function(c, fr) return %s end)(context, filter_registry) or "")',
+                        filter_code
+                    )
+                )
+            elseif #expr_tokens == 1 and expr_tokens[1].type == "IDENTIFIER" then
                 local var_name = expr_tokens[1].value
                 -- Check if this is an attribute, otherwise use normal context access
                 if attributes[var_name] then
@@ -259,7 +434,7 @@ local function compile(template_str)
     local conditional_stack = {} -- Stack to track nested conditionals
 
     -- Start building the function body
-    table.insert(body_parts, "local context = ...")
+    table.insert(body_parts, "local context, filter_registry = ...")
     table.insert(body_parts, "local parts = {}")
     table.insert(body_parts, "local function is_truthy(val)")
     table.insert(
@@ -291,8 +466,27 @@ local function compile(template_str)
             end
             parser.pos = parser.pos + 1
 
-            -- Handle simple expressions (backward compatibility)
-            if #expr_tokens == 1 and expr_tokens[1].type == "IDENTIFIER" then
+            -- Check if this expression contains filter pipelines
+            local has_filters = false
+            for _, token in ipairs(expr_tokens) do
+                if token.type == "OPERATOR" and token.value == "|>" then
+                    has_filters = true
+                    break
+                end
+            end
+
+            if has_filters then
+                -- Handle filter pipeline expressions
+                local filter_code = parse_filter_pipeline(expr_tokens)
+                table.insert(
+                    body_parts,
+                    string.format(
+                        'table.insert(parts, tostring((function(c, fr) return %s end)(context, filter_registry) or ""))',
+                        filter_code
+                    )
+                )
+            elseif #expr_tokens == 1 and expr_tokens[1].type == "IDENTIFIER" then
+                -- Handle simple expressions (backward compatibility)
                 local var_name = expr_tokens[1].value
                 table.insert(
                     body_parts,
@@ -870,6 +1064,8 @@ local function compile(template_str)
         error("Failed to compile template: " .. load_err)
     end
 
+    -- Note: filter_registry is passed as parameter to compiled functions
+
     -- Format the body for pretty printing
     local formatted_body = table.concat(body_parts, "\n")
 
@@ -878,7 +1074,7 @@ local function compile(template_str)
         render = function(context)
             -- Wrap context in a table if not already
             local ctx = type(context) == "table" and context or {}
-            return chunk(ctx)
+            return chunk(ctx, filter_registry)
         end,
         code = formatted_body,
     }

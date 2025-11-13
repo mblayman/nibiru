@@ -212,6 +212,14 @@ local function tokenize_expr(input)
             local value = input:sub(start, pos - 1)
             table.insert(tokens, {type = "LITERAL", value = value})
             pos = pos + 1  -- Skip closing quote
+        elseif c == "|" then
+            -- Check for |> pipeline operator
+            if pos + 1 <= len and input:sub(pos + 1, pos + 1) == ">" then
+                table.insert(tokens, {type = "OPERATOR", value = "|>"})
+                pos = pos + 2
+            else
+                error("Invalid character '|' in expression at position " .. pos)
+            end
         elseif c == "+" or c == "-" or c == "*" or c == "/" or c == "=" or c == ">" or c == "<" or c == "!" then
             -- Operators
             local start = pos
