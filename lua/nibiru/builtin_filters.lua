@@ -12,13 +12,7 @@ local function uppercase(value)
     return string.upper(value)
 end
 
---- Register all built-in filters with the Template module
----@param Template table The Template module
-local function register_builtin_filters(Template)
-    Template.register_filter("uppercase", uppercase)
-end
-
+-- Return table mapping filter names to functions
 return {
     uppercase = uppercase,
-    register = register_builtin_filters,
 }

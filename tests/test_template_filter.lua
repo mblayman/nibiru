@@ -104,6 +104,8 @@ end
 
 function tests.test_filter_pipeline_in_component()
     -- Test filters work within component templates
+    -- Clear any existing filters first
+    Template.clear_filters()
     Template.register_filter("uppercase", function(value)
         return string.upper(value)
     end)

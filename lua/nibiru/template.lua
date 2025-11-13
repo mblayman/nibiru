@@ -1089,8 +1089,10 @@ end
 
 -- Load built-in filters automatically
 local success, builtin_filters = pcall(require, "nibiru.builtin_filters")
-if success and builtin_filters.register then
-    builtin_filters.register(Template)
+if success then
+    for name, filter_func in pairs(builtin_filters) do
+        Template.register_filter(name, filter_func)
+    end
 end
 
 -- Make the Template constructor callable: Template(template_str) returns the render function directly
