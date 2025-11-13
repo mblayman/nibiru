@@ -846,4 +846,92 @@ function tests.test_reverse_filter_boolean_input()
     assert.match("reverse filter expects a string or table", err)
 end
 
+-- Default filter tests
+
+function tests.test_default_filter_nil_input()
+    -- Test default with nil input
+    local template = Template("{{ value |> default('fallback') }}")
+    local result = template({ value = nil })
+    assert.equal("fallback", result)
+end
+
+function tests.test_default_filter_false_input()
+    -- Test default with false input
+    local template = Template("{{ value |> default('fallback') }}")
+    local result = template({ value = false })
+    assert.equal("fallback", result)
+end
+
+function tests.test_default_filter_empty_string()
+    -- Test default with empty string
+    local template = Template("{{ value |> default('fallback') }}")
+    local result = template({ value = "" })
+    assert.equal("fallback", result)
+end
+
+function tests.test_default_filter_empty_table()
+    -- Test default with empty table
+    local template = Template("{{ value |> default('fallback') }}")
+    local result = template({ value = {} })
+    assert.equal("fallback", result)
+end
+
+function tests.test_default_filter_truthy_string()
+    -- Test default with truthy string (should return original)
+    local template = Template("{{ value |> default('fallback') }}")
+    local result = template({ value = "hello" })
+    assert.equal("hello", result)
+end
+
+function tests.test_default_filter_truthy_number()
+    -- Test default with truthy number (should return original)
+    local template = Template("{{ value |> default('fallback') }}")
+    local result = template({ value = 42 })
+    assert.equal("42", result)  -- Template converts to string
+end
+
+function tests.test_default_filter_truthy_table()
+    -- Test default with truthy table (should return original)
+    local template = Template("{{ value |> default('fallback') }}")
+    local result = template({ value = { key = "value" } })
+    assert.is_string(result)  -- Table renders as string in template
+    assert.is_true(#result > 0)
+end
+
+function tests.test_default_filter_zero()
+    -- Test default with zero (should return original, not default)
+    local template = Template("{{ value |> default('fallback') }}")
+    local result = template({ value = 0 })
+    assert.equal("0", result)
+end
+
+function tests.test_default_filter_default_nil()
+    -- Test default with nil as default value
+    local template = Template("{{ value |> default(nil) }}")
+    local result = template({ value = "" })
+    assert.equal("", result)  -- nil default doesn't change the falsy check
+end
+
+-- Test default filter directly (not through template) for better assertions
+
+function tests.test_default_filter_direct()
+    -- Test default filter directly
+    local filters = require("nibiru.builtin_filters")
+
+    -- Test various falsy inputs
+    assert.equal("fallback", filters.default(nil, "fallback"))
+    assert.equal("fallback", filters.default(false, "fallback"))
+    assert.equal("fallback", filters.default("", "fallback"))
+    assert.equal("fallback", filters.default({}, "fallback"))
+
+    -- Test truthy inputs
+    assert.equal("hello", filters.default("hello", "fallback"))
+    assert.equal(42, filters.default(42, "fallback"))
+    assert.equal(true, filters.default(true, "fallback"))
+
+    -- Test table with content
+    local t = { key = "value" }
+    assert.equal(t, filters.default(t, "fallback"))
+end
+
 return tests

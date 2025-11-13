@@ -152,6 +152,30 @@ local function reverse(value)
     end
 end
 
+--- Return default value if input is falsy (nil, false, empty string, empty table)
+---@param value any Value to check
+---@param default any Default value to return if input is falsy
+---@return any Original value or default
+local function default(value, default)
+    -- Consider falsy: nil, false, empty string, empty table
+    if value == nil then
+        return default
+    elseif value == false then
+        return default
+    elseif type(value) == "string" and #value == 0 then
+        return default
+    elseif type(value) == "table" then
+        local count = 0
+        for _ in pairs(value) do
+            count = count + 1
+        end
+        if count == 0 then
+            return default
+        end
+    end
+    return value
+end
+
 -- Return table mapping filter names to functions
 return {
     uppercase = uppercase,
@@ -162,4 +186,5 @@ return {
     first = first,
     last = last,
     reverse = reverse,
+    default = default,
 }
