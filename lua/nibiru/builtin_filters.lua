@@ -72,6 +72,24 @@ local function length(value)
     end
 end
 
+--- Get the first element of an array or first character of a string
+---@param value any Value to get first element from
+---@return any First element or character
+local function first(value)
+    local t = type(value)
+    if t == "string" then
+        if #value == 0 then
+            return ""
+        end
+        return value:sub(1, 1)
+    elseif t == "table" then
+        -- For arrays, return the first element (index 1)
+        return value[1]
+    else
+        error("first filter expects a string or table, got " .. t)
+    end
+end
+
 -- Return table mapping filter names to functions
 return {
     uppercase = uppercase,
@@ -79,4 +97,5 @@ return {
     capitalize = capitalize,
     truncate = truncate,
     length = length,
+    first = first,
 }

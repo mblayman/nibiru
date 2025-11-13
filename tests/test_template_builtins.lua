@@ -517,4 +517,110 @@ function tests.test_length_filter_boolean_input()
     assert.match("length filter expects a string or table", err)
 end
 
+-- First filter tests
+
+function tests.test_first_filter_string()
+    -- Test first character of string
+    local template = Template("{{ value |> first }}")
+    local result = template({ value = "hello world" })
+    assert.equal("h", result)
+end
+
+function tests.test_first_filter_empty_string()
+    -- Test first character of empty string
+    local template = Template("{{ value |> first }}")
+    local result = template({ value = "" })
+    assert.equal("", result)
+end
+
+function tests.test_first_filter_single_char_string()
+    -- Test first character of single character string
+    local template = Template("{{ value |> first }}")
+    local result = template({ value = "a" })
+    assert.equal("a", result)
+end
+
+function tests.test_first_filter_unicode_string()
+    -- Test first character of Unicode string
+    -- Note: Lua string.sub works on bytes, not characters
+    -- "αβγ" is 6 bytes, first byte is 0xCE (206 decimal)
+    local template = Template("{{ value |> first }}")
+    local result = template({ value = "αβγ" })
+    assert.equal(string.char(206), result)  -- First byte (0xCE)
+end
+
+function tests.test_first_filter_array()
+    -- Test first element of array
+    local template = Template("{{ value |> first }}")
+    local result = template({ value = { "first", "second", "third" } })
+    assert.equal("first", result)
+end
+
+function tests.test_first_filter_empty_array()
+    -- Test first element of empty array
+    local template = Template("{{ value |> first }}")
+    local result = template({ value = {} })
+    assert.equal("", result)  -- nil becomes empty string in templates
+end
+
+function tests.test_first_filter_single_element_array()
+    -- Test first element of single element array
+    local template = Template("{{ value |> first }}")
+    local result = template({ value = { "only" } })
+    assert.equal("only", result)
+end
+
+function tests.test_first_filter_hash_table()
+    -- Test first element of hash table (returns nil since no index 1)
+    local template = Template("{{ value |> first }}")
+    local result = template({ value = { key1 = "value1", key2 = "value2" } })
+    assert.equal("", result)  -- nil becomes empty string in templates
+end
+
+function tests.test_first_filter_mixed_table()
+    -- Test first element of mixed table (prioritizes array part)
+    local template = Template("{{ value |> first }}")
+    local result = template({ value = { "array_item", key = "hash_value" } })
+    assert.equal("array_item", result)  -- Array element comes first
+end
+
+function tests.test_first_filter_sparse_array()
+    -- Test first element of sparse array
+    local template = Template("{{ value |> first }}")
+    local result = template({ value = { [3] = "third", [1] = "first", [5] = "fifth" } })
+    assert.equal("first", result)  -- Index 1 exists
+end
+
+-- Error path tests for first
+
+function tests.test_first_filter_nil_input()
+    -- Test error when input is nil
+    local success, err = pcall(function()
+        local template = Template("{{ value |> first }}")
+        template({ value = nil })
+    end)
+    assert.is_false(success)
+    assert.match("first filter expects a string or table", err)
+end
+
+function tests.test_first_filter_number_input()
+    -- Test error when input is a number
+    local success, err = pcall(function()
+        local template = Template("{{ value |> first }}")
+        template({ value = 123 })
+    end)
+    assert.is_false(success)
+    assert.match("first filter expects a string or table", err)
+end
+
+function tests.test_first_filter_boolean_input()
+    -- Test error when input is a boolean
+    local success, err = pcall(function()
+        local template = Template("{{ value |> first }}")
+        template({ value = true })
+    end)
+    assert.is_false(success)
+    assert.match("first filter expects a string or table", err)
+end
+
 return tests
