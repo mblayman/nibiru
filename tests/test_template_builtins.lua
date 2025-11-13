@@ -623,4 +623,110 @@ function tests.test_first_filter_boolean_input()
     assert.match("first filter expects a string or table", err)
 end
 
+-- Last filter tests
+
+function tests.test_last_filter_string()
+    -- Test last character of string
+    local template = Template("{{ value |> last }}")
+    local result = template({ value = "hello world" })
+    assert.equal("d", result)
+end
+
+function tests.test_last_filter_empty_string()
+    -- Test last character of empty string
+    local template = Template("{{ value |> last }}")
+    local result = template({ value = "" })
+    assert.equal("", result)
+end
+
+function tests.test_last_filter_single_char_string()
+    -- Test last character of single character string
+    local template = Template("{{ value |> last }}")
+    local result = template({ value = "a" })
+    assert.equal("a", result)
+end
+
+function tests.test_last_filter_unicode_string()
+    -- Test last character of Unicode string
+    -- Note: Lua string.sub works on bytes, not characters
+    -- "αβγ" is 6 bytes, last byte is 0xB3 (179 decimal, part of "γ")
+    local template = Template("{{ value |> last }}")
+    local result = template({ value = "αβγ" })
+    assert.equal(string.char(179), result)  -- Last byte (0xB3)
+end
+
+function tests.test_last_filter_array()
+    -- Test last element of array
+    local template = Template("{{ value |> last }}")
+    local result = template({ value = { "first", "second", "third" } })
+    assert.equal("third", result)
+end
+
+function tests.test_last_filter_empty_array()
+    -- Test last element of empty array
+    local template = Template("{{ value |> last }}")
+    local result = template({ value = {} })
+    assert.equal("", result)  -- nil becomes empty string in templates
+end
+
+function tests.test_last_filter_single_element_array()
+    -- Test last element of single element array
+    local template = Template("{{ value |> last }}")
+    local result = template({ value = { "only" } })
+    assert.equal("only", result)
+end
+
+function tests.test_last_filter_hash_table()
+    -- Test last element of hash table (returns nil since no meaningful last)
+    local template = Template("{{ value |> last }}")
+    local result = template({ value = { key1 = "value1", key2 = "value2" } })
+    assert.equal("", result)  -- nil becomes empty string in templates
+end
+
+function tests.test_last_filter_mixed_table()
+    -- Test last element of mixed table (uses array length)
+    local template = Template("{{ value |> last }}")
+    local result = template({ value = { "first", "second", key = "hash_value" } })
+    assert.equal("second", result)  -- Last array element
+end
+
+function tests.test_last_filter_sparse_array()
+    -- Test last element of sparse array (uses #value)
+    local template = Template("{{ value |> last }}")
+    local result = template({ value = { [1] = "first", [3] = "third", [5] = "fifth" } })
+    assert.equal("fifth", result)  -- Index 5 is the highest
+end
+
+-- Error path tests for last
+
+function tests.test_last_filter_nil_input()
+    -- Test error when input is nil
+    local success, err = pcall(function()
+        local template = Template("{{ value |> last }}")
+        template({ value = nil })
+    end)
+    assert.is_false(success)
+    assert.match("last filter expects a string or table", err)
+end
+
+function tests.test_last_filter_number_input()
+    -- Test error when input is a number
+    local success, err = pcall(function()
+        local template = Template("{{ value |> last }}")
+        template({ value = 123 })
+    end)
+    assert.is_false(success)
+    assert.match("last filter expects a string or table", err)
+end
+
+function tests.test_last_filter_boolean_input()
+    -- Test error when input is a boolean
+    local success, err = pcall(function()
+        local template = Template("{{ value |> last }}")
+        template({ value = true })
+    end)
+    assert.is_false(success)
+    assert.match("last filter expects a string or table", err)
+end
+
 return tests

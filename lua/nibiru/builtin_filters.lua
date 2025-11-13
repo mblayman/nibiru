@@ -90,6 +90,30 @@ local function first(value)
     end
 end
 
+--- Get the last element of an array or last character of a string
+---@param value any Value to get last element from
+---@return any Last element or character
+local function last(value)
+    local t = type(value)
+    if t == "string" then
+        if #value == 0 then
+            return ""
+        end
+        return value:sub(-1)  -- Last character
+    elseif t == "table" then
+        -- For arrays, find the highest numeric index
+        local max_index = 0
+        for k, _ in pairs(value) do
+            if type(k) == "number" and k > max_index and k == math.floor(k) then
+                max_index = k
+            end
+        end
+        return value[max_index]
+    else
+        error("last filter expects a string or table, got " .. t)
+    end
+end
+
 -- Return table mapping filter names to functions
 return {
     uppercase = uppercase,
@@ -98,4 +122,5 @@ return {
     truncate = truncate,
     length = length,
     first = first,
+    last = last,
 }
