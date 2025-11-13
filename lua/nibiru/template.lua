@@ -1087,6 +1087,12 @@ local function compile(template_str)
     return result
 end
 
+-- Load built-in filters automatically
+local success, builtin_filters = pcall(require, "nibiru.builtin_filters")
+if success and builtin_filters.register then
+    builtin_filters.register(Template)
+end
+
 -- Make the Template constructor callable: Template(template_str) returns the render function directly
 setmetatable(Template, {
     __call = function(_, template_str)
