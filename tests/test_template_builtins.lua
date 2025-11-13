@@ -91,4 +91,92 @@ function tests.test_uppercase_filter_boolean_input()
     assert.match("uppercase filter expects a string", err)
 end
 
+-- Lowercase filter tests
+
+function tests.test_lowercase_filter_basic()
+    -- Test basic lowercase conversion
+    local template = Template("{{ value |> lowercase }}")
+    local result = template({ value = "HELLO WORLD" })
+    assert.equal("hello world", result)
+end
+
+function tests.test_lowercase_filter_empty_string()
+    -- Test lowercase with empty string
+    local template = Template("{{ value |> lowercase }}")
+    local result = template({ value = "" })
+    assert.equal("", result)
+end
+
+function tests.test_lowercase_filter_mixed_case()
+    -- Test lowercase with mixed case input
+    local template = Template("{{ value |> lowercase }}")
+    local result = template({ value = "HeLLo WoRlD" })
+    assert.equal("hello world", result)
+end
+
+function tests.test_lowercase_filter_numbers()
+    -- Test lowercase with numbers (should pass through unchanged)
+    local template = Template("{{ value |> lowercase }}")
+    local result = template({ value = "HELLO123WORLD" })
+    assert.equal("hello123world", result)
+end
+
+function tests.test_lowercase_filter_special_chars()
+    -- Test lowercase with special characters
+    local template = Template("{{ value |> lowercase }}")
+    local result = template({ value = "HELLO-WORLD_TEST@EXAMPLE.COM" })
+    assert.equal("hello-world_test@example.com", result)
+end
+
+function tests.test_lowercase_filter_unicode()
+    -- Test lowercase with Unicode characters
+    local template = Template("{{ value |> lowercase }}")
+    local result = template({ value = "HÉLLO WÖRLD" })
+    -- Note: Lua's string.lower may not handle Unicode properly in all versions
+    -- This test documents current behavior
+    assert.equal(string.lower("HÉLLO WÖRLD"), result)
+end
+
+-- Error path tests for lowercase
+
+function tests.test_lowercase_filter_nil_input()
+    -- Test error when input is nil
+    local success, err = pcall(function()
+        local template = Template("{{ value |> lowercase }}")
+        template({ value = nil })
+    end)
+    assert.is_false(success)
+    assert.match("lowercase filter expects a string", err)
+end
+
+function tests.test_lowercase_filter_number_input()
+    -- Test error when input is a number
+    local success, err = pcall(function()
+        local template = Template("{{ value |> lowercase }}")
+        template({ value = 123 })
+    end)
+    assert.is_false(success)
+    assert.match("lowercase filter expects a string", err)
+end
+
+function tests.test_lowercase_filter_table_input()
+    -- Test error when input is a table
+    local success, err = pcall(function()
+        local template = Template("{{ value |> lowercase }}")
+        template({ value = { key = "value" } })
+    end)
+    assert.is_false(success)
+    assert.match("lowercase filter expects a string", err)
+end
+
+function tests.test_lowercase_filter_boolean_input()
+    -- Test error when input is a boolean
+    local success, err = pcall(function()
+        local template = Template("{{ value |> lowercase }}")
+        template({ value = true })
+    end)
+    assert.is_false(success)
+    assert.match("lowercase filter expects a string", err)
+end
+
 return tests
