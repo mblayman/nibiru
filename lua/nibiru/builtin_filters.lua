@@ -52,10 +52,31 @@ local function truncate(value, length)
     return value:sub(1, length)
 end
 
+--- Get the length of a string, array, or table
+---@param value any Value to get length of
+---@return number Length of the input
+local function length(value)
+    local t = type(value)
+    if t == "string" then
+        return #value
+    elseif t == "table" then
+        -- For arrays, return #value (sequence length)
+        -- For hash tables, count the number of keys
+        local count = 0
+        for _ in pairs(value) do
+            count = count + 1
+        end
+        return count
+    else
+        error("length filter expects a string or table, got " .. t)
+    end
+end
+
 -- Return table mapping filter names to functions
 return {
     uppercase = uppercase,
     lowercase = lowercase,
     capitalize = capitalize,
     truncate = truncate,
+    length = length,
 }

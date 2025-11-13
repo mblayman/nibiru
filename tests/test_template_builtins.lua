@@ -427,4 +427,94 @@ function tests.test_truncate_filter_nil_length()
     assert.match("truncate filter expects a positive integer length", err)
 end
 
+-- Length filter tests
+
+function tests.test_length_filter_string()
+    -- Test length of string
+    local template = Template("{{ value |> length }}")
+    local result = template({ value = "hello world" })
+    assert.equal("11", result)  -- Template output is always string
+end
+
+function tests.test_length_filter_empty_string()
+    -- Test length of empty string
+    local template = Template("{{ value |> length }}")
+    local result = template({ value = "" })
+    assert.equal("0", result)
+end
+
+function tests.test_length_filter_unicode_string()
+    -- Test length of Unicode string (byte length, not character count)
+    local template = Template("{{ value |> length }}")
+    local result = template({ value = "héllo wörld" })
+    assert.equal("13", result)  -- 13 bytes
+end
+
+function tests.test_length_filter_array()
+    -- Test length of array (table with numeric indices)
+    local template = Template("{{ value |> length }}")
+    local result = template({ value = { "a", "b", "c", "d" } })
+    assert.equal("4", result)
+end
+
+function tests.test_length_filter_empty_array()
+    -- Test length of empty array
+    local template = Template("{{ value |> length }}")
+    local result = template({ value = {} })
+    assert.equal("0", result)
+end
+
+function tests.test_length_filter_hash_table()
+    -- Test length of hash table (count of keys)
+    local template = Template("{{ value |> length }}")
+    local result = template({ value = { key1 = "value1", key2 = "value2", key3 = "value3" } })
+    assert.equal("3", result)
+end
+
+function tests.test_length_filter_mixed_table()
+    -- Test length of mixed table (numeric and string keys)
+    local template = Template("{{ value |> length }}")
+    local result = template({ value = { "first", key = "value", "second" } })
+    assert.equal("3", result)  -- 2 array elements + 1 hash key
+end
+
+function tests.test_length_filter_sparse_array()
+    -- Test length of sparse array (holes in numeric indices)
+    local template = Template("{{ value |> length }}")
+    local result = template({ value = { [1] = "a", [3] = "c", [5] = "e" } })
+    assert.equal("3", result)  -- Count of actual keys, not highest index
+end
+
+-- Error path tests for length
+
+function tests.test_length_filter_nil_input()
+    -- Test error when input is nil
+    local success, err = pcall(function()
+        local template = Template("{{ value |> length }}")
+        template({ value = nil })
+    end)
+    assert.is_false(success)
+    assert.match("length filter expects a string or table", err)
+end
+
+function tests.test_length_filter_number_input()
+    -- Test error when input is a number
+    local success, err = pcall(function()
+        local template = Template("{{ value |> length }}")
+        template({ value = 123 })
+    end)
+    assert.is_false(success)
+    assert.match("length filter expects a string or table", err)
+end
+
+function tests.test_length_filter_boolean_input()
+    -- Test error when input is a boolean
+    local success, err = pcall(function()
+        local template = Template("{{ value |> length }}")
+        template({ value = true })
+    end)
+    assert.is_false(success)
+    assert.match("length filter expects a string or table", err)
+end
+
 return tests
