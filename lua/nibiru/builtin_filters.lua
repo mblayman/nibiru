@@ -22,8 +22,22 @@ local function lowercase(value)
     return string.lower(value)
 end
 
+--- Capitalize the first letter of each word in a string
+---@param value any Value to convert (should be string)
+---@return string Capitalized version of the input
+local function capitalize(value)
+    if type(value) ~= "string" then
+        error("capitalize filter expects a string, got " .. type(value))
+    end
+    -- Capitalize first letter of each word (separated by whitespace)
+    return (value:gsub("(%w+)", function(word)
+        return string.upper(word:sub(1, 1)) .. string.lower(word:sub(2))
+    end))
+end
+
 -- Return table mapping filter names to functions
 return {
     uppercase = uppercase,
     lowercase = lowercase,
+    capitalize = capitalize,
 }
