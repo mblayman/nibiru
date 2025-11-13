@@ -286,4 +286,145 @@ function tests.test_capitalize_filter_boolean_input()
     assert.match("capitalize filter expects a string", err)
 end
 
+-- Truncate filter tests
+
+function tests.test_truncate_filter_basic()
+    -- Test basic truncation
+    local template = Template("{{ value |> truncate(10) }}")
+    local result = template({ value = "hello world this is a long string" })
+    assert.equal("hello worl", result)
+end
+
+function tests.test_truncate_filter_shorter_than_length()
+    -- Test string shorter than length (should return unchanged)
+    local template = Template("{{ value |> truncate(20) }}")
+    local result = template({ value = "short string" })
+    assert.equal("short string", result)
+end
+
+function tests.test_truncate_filter_exact_length()
+    -- Test string exactly matching length
+    local template = Template("{{ value |> truncate(12) }}")
+    local result = template({ value = "hello world!" })
+    assert.equal("hello world!", result)
+end
+
+function tests.test_truncate_filter_empty_string()
+    -- Test truncate with empty string
+    local template = Template("{{ value |> truncate(5) }}")
+    local result = template({ value = "" })
+    assert.equal("", result)
+end
+
+function tests.test_truncate_filter_zero_length()
+    -- Test truncate to zero length
+    local template = Template("{{ value |> truncate(0) }}")
+    local result = template({ value = "hello world" })
+    assert.equal("", result)
+end
+
+function tests.test_truncate_filter_unicode()
+    -- Test truncate with Unicode characters
+    -- Note: Lua string operations work on bytes, not characters
+    -- "héllo wörld" is 13 bytes, so truncate(5) gives first 5 bytes
+    local template = Template("{{ value |> truncate(5) }}")
+    local result = template({ value = "héllo wörld" })
+    assert.equal("héll", result)  -- "é" is 2 bytes, so we get "héll" (5 bytes)
+end
+
+function tests.test_truncate_filter_multibyte_chars()
+    -- Test truncate with multibyte UTF-8 characters
+    -- Note: Lua string operations work on bytes, not characters
+    -- Greek letters are 2 bytes each, so truncate(3) cuts in middle of 2nd character
+    local template = Template("{{ value |> truncate(3) }}")
+    local result = template({ value = "αβγδε" })
+    -- Result should be exactly 3 bytes: "α" (2 bytes) + 1 byte from "β"
+    assert.equal(3, #result)
+    assert.equal("α", result:sub(1, 2))  -- First 2 bytes should be "α"
+    -- The 3rd byte should be the first byte of "β" (which is 0xCE)
+    assert.equal(206, string.byte(result, 3))  -- 0xCE is first byte of "β"
+end
+
+-- Error path tests for truncate
+
+function tests.test_truncate_filter_nil_input()
+    -- Test error when input is nil
+    local success, err = pcall(function()
+        local template = Template("{{ value |> truncate(5) }}")
+        template({ value = nil })
+    end)
+    assert.is_false(success)
+    assert.match("truncate filter expects a string", err)
+end
+
+function tests.test_truncate_filter_number_input()
+    -- Test error when input is a number
+    local success, err = pcall(function()
+        local template = Template("{{ value |> truncate(5) }}")
+        template({ value = 123 })
+    end)
+    assert.is_false(success)
+    assert.match("truncate filter expects a string", err)
+end
+
+function tests.test_truncate_filter_table_input()
+    -- Test error when input is a table
+    local success, err = pcall(function()
+        local template = Template("{{ value |> truncate(5) }}")
+        template({ value = { key = "value" } })
+    end)
+    assert.is_false(success)
+    assert.match("truncate filter expects a string", err)
+end
+
+function tests.test_truncate_filter_boolean_input()
+    -- Test error when input is a boolean
+    local success, err = pcall(function()
+        local template = Template("{{ value |> truncate(5) }}")
+        template({ value = true })
+    end)
+    assert.is_false(success)
+    assert.match("truncate filter expects a string", err)
+end
+
+function tests.test_truncate_filter_negative_length()
+    -- Test error when length is negative
+    local success, err = pcall(function()
+        local template = Template("{{ value |> truncate(-1) }}")
+        template({ value = "hello world" })
+    end)
+    assert.is_false(success)
+    assert.match("truncate filter expects a positive integer length", err)
+end
+
+function tests.test_truncate_filter_float_length()
+    -- Test error when length is a float
+    local success, err = pcall(function()
+        local template = Template("{{ value |> truncate(5.5) }}")
+        template({ value = "hello world" })
+    end)
+    assert.is_false(success)
+    assert.match("truncate filter expects a positive integer length", err)
+end
+
+function tests.test_truncate_filter_string_length()
+    -- Test error when length is a string
+    local success, err = pcall(function()
+        local template = Template("{{ value |> truncate('5') }}")
+        template({ value = "hello world" })
+    end)
+    assert.is_false(success)
+    assert.match("truncate filter expects a positive integer length", err)
+end
+
+function tests.test_truncate_filter_nil_length()
+    -- Test error when length is nil
+    local success, err = pcall(function()
+        local template = Template("{{ value |> truncate(nil) }}")
+        template({ value = "hello world" })
+    end)
+    assert.is_false(success)
+    assert.match("truncate filter expects a positive integer length", err)
+end
+
 return tests

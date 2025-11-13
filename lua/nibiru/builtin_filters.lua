@@ -35,9 +35,27 @@ local function capitalize(value)
     end))
 end
 
+--- Truncate a string to a specified length
+---@param value any Value to truncate (should be string)
+---@param length number Maximum length (should be positive integer)
+---@return string Truncated version of the input
+local function truncate(value, length)
+    if type(value) ~= "string" then
+        error("truncate filter expects a string, got " .. type(value))
+    end
+    if type(length) ~= "number" or length < 0 or length ~= math.floor(length) then
+        error("truncate filter expects a positive integer length, got " .. tostring(length))
+    end
+    if #value <= length then
+        return value
+    end
+    return value:sub(1, length)
+end
+
 -- Return table mapping filter names to functions
 return {
     uppercase = uppercase,
     lowercase = lowercase,
     capitalize = capitalize,
+    truncate = truncate,
 }
