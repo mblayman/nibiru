@@ -114,6 +114,44 @@ local function last(value)
     end
 end
 
+--- Reverse an array or string
+---@param value any Value to reverse
+---@return any Reversed value
+local function reverse(value)
+    local t = type(value)
+    if t == "string" then
+        -- Reverse string by converting to array of characters and reversing
+        local chars = {}
+        for i = 1, #value do
+            chars[i] = value:sub(i, i)
+        end
+        local reversed = {}
+        for i = #chars, 1, -1 do
+            table.insert(reversed, chars[i])
+        end
+        return table.concat(reversed)
+    elseif t == "table" then
+        -- Reverse array by creating new table with elements in reverse order
+        local reversed = {}
+        -- First find all numeric indices
+        local indices = {}
+        for k, v in pairs(value) do
+            if type(k) == "number" and k == math.floor(k) and k > 0 then
+                table.insert(indices, k)
+            end
+        end
+        -- Sort indices to handle sparse arrays properly
+        table.sort(indices)
+        -- Reverse the elements into consecutive indices starting from 1
+        for i = 1, #indices do
+            reversed[i] = value[indices[#indices - i + 1]]
+        end
+        return reversed
+    else
+        error("reverse filter expects a string or table, got " .. t)
+    end
+end
+
 -- Return table mapping filter names to functions
 return {
     uppercase = uppercase,
@@ -123,4 +161,5 @@ return {
     length = length,
     first = first,
     last = last,
+    reverse = reverse,
 }
