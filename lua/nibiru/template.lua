@@ -1,6 +1,9 @@
 -- nibiru/template.lua
-local Template = {}
+
+local builtin_filters = require("nibiru.builtin_filters")
 local Tokenizer = require("nibiru.tokenizer")
+
+local Template = {}
 
 --- Component registry: maps component names to their template strings
 ---@type table<string, string>
@@ -94,12 +97,25 @@ local function parse_filter_pipeline(expr_tokens, attributes)
             -- Parse optional arguments
             local args = {}
             i = i + 1
-            if i <= #expr_tokens and expr_tokens[i].type == "PUNCTUATION" and expr_tokens[i].value == "(" then
+            if
+                i <= #expr_tokens
+                and expr_tokens[i].type == "PUNCTUATION"
+                and expr_tokens[i].value == "("
+            then
                 -- Parse arguments until closing )
                 i = i + 1
                 local current_arg = {}
-                while i <= #expr_tokens and not (expr_tokens[i].type == "PUNCTUATION" and expr_tokens[i].value == ")") do
-                    if expr_tokens[i].type == "PUNCTUATION" and expr_tokens[i].value == "," then
+                while
+                    i <= #expr_tokens
+                    and not (
+                        expr_tokens[i].type == "PUNCTUATION"
+                        and expr_tokens[i].value == ")"
+                    )
+                do
+                    if
+                        expr_tokens[i].type == "PUNCTUATION"
+                        and expr_tokens[i].value == ","
+                    then
                         -- End of current argument
                         if #current_arg > 0 then
                             table.insert(args, table.concat(current_arg))
@@ -117,19 +133,31 @@ local function parse_filter_pipeline(expr_tokens, attributes)
                                     and attr_value:sub(1, 8) == "__CODE__"
                                 then
                                     -- This is Lua code, insert it directly
-                                    table.insert(current_arg, "(" .. attr_value:sub(9) .. ")")
+                                    table.insert(
+                                        current_arg,
+                                        "(" .. attr_value:sub(9) .. ")"
+                                    )
                                 else
                                     -- String literal
-                                    table.insert(current_arg, escape_lua_string(attr_value))
+                                    table.insert(
+                                        current_arg,
+                                        escape_lua_string(attr_value)
+                                    )
                                 end
                             else
                                 table.insert(current_arg, "c." .. expr_tokens[i].value)
                             end
                         elseif expr_tokens[i].type == "LITERAL" then
                             if type(expr_tokens[i].value) == "string" then
-                                table.insert(current_arg, string.format("%q", expr_tokens[i].value))
+                                table.insert(
+                                    current_arg,
+                                    string.format("%q", expr_tokens[i].value)
+                                )
                             else
-                                table.insert(current_arg, tostring(expr_tokens[i].value))
+                                table.insert(
+                                    current_arg,
+                                    tostring(expr_tokens[i].value)
+                                )
                             end
                         else
                             table.insert(current_arg, expr_tokens[i].value or "")
@@ -147,13 +175,14 @@ local function parse_filter_pipeline(expr_tokens, attributes)
                 i = i + 1
             end
 
-    -- Generate filter call
-    local value_expr = table.concat(current_expr)
-    local args_str = #args > 0 and ", " .. table.concat(args, ", ") or ""
-    local filter_call = string.format("fr[%q](%s%s)", filter_name, value_expr, args_str)
+            -- Generate filter call
+            local value_expr = table.concat(current_expr)
+            local args_str = #args > 0 and ", " .. table.concat(args, ", ") or ""
+            local filter_call =
+                string.format("fr[%q](%s%s)", filter_name, value_expr, args_str)
 
             -- Reset for next part of pipeline
-            current_expr = {filter_call}
+            current_expr = { filter_call }
         else
             -- Regular token, add to current expression
             if token.type == "IDENTIFIER" then
@@ -1088,11 +1117,8 @@ local function compile(template_str)
 end
 
 -- Load built-in filters automatically
-local success, builtin_filters = pcall(require, "nibiru.builtin_filters")
-if success then
-    for name, filter_func in pairs(builtin_filters) do
-        Template.register_filter(name, filter_func)
-    end
+for name, filter_func in pairs(builtin_filters) do
+    Template.register_filter(name, filter_func)
 end
 
 -- Make the Template constructor callable: Template(template_str) returns the render function directly
