@@ -176,6 +176,17 @@ local function default(value, default)
     return value
 end
 
+--- Format a string using Lua's string.format
+---@param format_string string Format string (should contain % placeholders)
+---@param ... any Values to format into the string
+---@return string Formatted string
+local function format(format_string, ...)
+    if type(format_string) ~= "string" then
+        error("format filter expects a string format, got " .. type(format_string))
+    end
+    return string.format(format_string, ...)
+end
+
 -- Return table mapping filter names to functions
 return {
     uppercase = uppercase,
@@ -187,4 +198,5 @@ return {
     last = last,
     reverse = reverse,
     default = default,
+    format = format,
 }

@@ -934,4 +934,105 @@ function tests.test_default_filter_direct()
     assert.equal(t, filters.default(t, "fallback"))
 end
 
+-- Format filter tests
+
+function tests.test_format_filter_basic()
+    -- Test basic string formatting
+    local template = Template("{{ 'Hello %s' |> format('World') }}")
+    local result = template({})
+    assert.equal("Hello World", result)
+end
+
+function tests.test_format_filter_multiple_args()
+    -- Test formatting with multiple arguments
+    local template = Template("{{ '%s %d %.2f' |> format('test', 42, 3.14159) }}")
+    local result = template({})
+    assert.equal("test 42 3.14", result)
+end
+
+function tests.test_format_filter_numbers()
+    -- Test number formatting
+    local template = Template("{{ 'Value: %d' |> format(123) }}")
+    local result = template({})
+    assert.equal("Value: 123", result)
+end
+
+function tests.test_format_filter_zero_padding()
+    -- Test zero padding
+    local template = Template("{{ '%04d' |> format(42) }}")
+    local result = template({})
+    assert.equal("0042", result)
+end
+
+function tests.test_format_filter_hex()
+    -- Test hexadecimal formatting
+    local template = Template("{{ '0x%X' |> format(255) }}")
+    local result = template({})
+    assert.equal("0xFF", result)
+end
+
+function tests.test_format_filter_float()
+    -- Test float formatting
+    local template = Template("{{ '%.3f' |> format(3.1415926535) }}")
+    local result = template({})
+    assert.equal("3.142", result)
+end
+
+function tests.test_format_filter_percent()
+    -- Test percent literal
+    local template = Template("{{ 'Progress: %d%%' |> format(75) }}")
+    local result = template({})
+    assert.equal("Progress: 75%", result)
+end
+
+-- Test format filter directly (not through template) for better assertions
+
+function tests.test_format_filter_direct()
+    -- Test format filter directly
+    local filters = require("nibiru.builtin_filters")
+
+    assert.equal("Hello World", filters.format("Hello %s", "World"))
+    assert.equal("test 42 3.14", filters.format("%s %d %.2f", "test", 42, 3.14159))
+    assert.equal("0042", filters.format("%04d", 42))
+    assert.equal("0xFF", filters.format("0x%X", 255))
+    assert.equal("3.142", filters.format("%.3f", 3.1415926535))
+    assert.equal("Progress: 75%", filters.format("Progress: %d%%", 75))
+end
+
+-- Error path tests for format
+
+function tests.test_format_filter_nil_format()
+    -- Test error when format string is nil
+    local success, err = pcall(function()
+        local template = Template("{{ value |> format('test') }}")
+        template({ value = nil })
+    end)
+    assert.is_false(success)
+    assert.match("format filter expects a string format", err)
+end
+
+function tests.test_format_filter_number_format()
+    -- Test error when format string is a number
+    local success, err = pcall(function()
+        local template = Template("{{ value |> format('test') }}")
+        template({ value = 123 })
+    end)
+    assert.is_false(success)
+    assert.match("format filter expects a string format", err)
+end
+
+function tests.test_format_filter_invalid_format()
+    -- Test error with invalid format string
+    local success, err = pcall(function()
+        local template = Template("{{ 'Hello %' |> format('World') }}")
+        template({})
+    end)
+    -- This might not error in template context, but let's test directly
+    local filters = require("nibiru.builtin_filters")
+    local success2, err2 = pcall(function()
+        filters.format("Hello %", "World")
+    end)
+    assert.is_false(success2)  -- Should error on invalid format
+end
+
 return tests
