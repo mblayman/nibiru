@@ -13,6 +13,14 @@ local component_registry = {}
 ---@type table<string, function>
 local filter_registry = {}
 
+--- Template registry: maps template names to their template strings
+---@type table<string, string>
+local template_registry = {}
+
+--- Set of template names currently being processed (to detect cycles)
+---@type table<string, boolean>
+local processing_templates = {}
+
 --- Register a reusable component template.
 ---@param name string Component name (should start with capital letter)
 ---@param template_string string The component's template content
@@ -47,6 +55,24 @@ end
 --- Clear all registered filters (for testing).
 function Template.clear_filters()
     filter_registry = {}
+end
+
+--- Register a named template for inheritance.
+---@param name string Template name (should be a valid identifier)
+---@param template_string string The template content
+function Template.register(name, template_string)
+    if not name or name == "" then
+        error("Template name cannot be empty")
+    end
+    if template_registry[name] then
+        error("Template '" .. name .. "' is already registered")
+    end
+    template_registry[name] = template_string
+end
+
+--- Clear all registered templates (for testing).
+function Template.clear_templates()
+    template_registry = {}
 end
 
 --- Escape a string for safe inclusion in Lua double-quoted string literals.
@@ -461,6 +487,379 @@ local function compile(template_str)
     local parser = { tokens = tokens, pos = 1 }
     local body_parts = {} -- Build the function body directly
     local conditional_stack = {} -- Stack to track nested conditionals
+
+    -- Check for template inheritance
+    local parent_template_name = nil
+    local extends_found = false
+    local content_before_extends = false
+
+    -- Check if first non-whitespace content is {% extends %}
+    local i = 1
+    while i <= #tokens do
+        local token = tokens[i]
+        if token.type == "STMT_START" then
+            i = i + 1
+            if i <= #tokens and tokens[i].type == "EXTENDS" then
+                -- Found extends statement
+                if extends_found then
+                    error("Multiple extends statements in template")
+                end
+                if content_before_extends then
+                    error("extends must be first")
+                end
+                extends_found = true
+
+                i = i + 1
+                if i > #tokens or tokens[i].type ~= "LITERAL" or type(tokens[i].value) ~= "string" then
+                    error("Expected quoted template name after extends")
+                elseif tokens[i].value == "" then
+                    error("extends requires a non-empty template name")
+                end
+                parent_template_name = tokens[i].value
+                i = i + 1
+
+                if i > #tokens or tokens[i].type ~= "STMT_END" then
+                    error("Expected %} after extends statement")
+                end
+                i = i + 1
+            elseif extends_found then
+                -- After extends, only allow block statements
+                if tokens[i].type == "BLOCK_START" then
+                    -- Parse block name
+                    i = i + 1
+                    if i > #tokens or tokens[i].type ~= "IDENTIFIER" then
+                        error("Expected block name after block")
+                    end
+                    local block_name = tokens[i].value
+                    i = i + 1
+
+                    if i > #tokens or tokens[i].type ~= "STMT_END" then
+                        error("Expected %} after block name")
+                    end
+                    i = i + 1
+
+                    -- Parse block content until endblock
+                    local block_depth = 1
+                    while i <= #tokens and block_depth > 0 do
+                        if tokens[i].type == "STMT_START" then
+                            i = i + 1
+                            if i <= #tokens then
+                                if tokens[i].type == "BLOCK_START" then
+                                    block_depth = block_depth + 1
+                                elseif tokens[i].type == "BLOCK_END" then
+                                    block_depth = block_depth - 1
+                                    if block_depth == 0 then
+                                        i = i + 1
+                                        if i <= #tokens and tokens[i].type == "STMT_END" then
+                                            i = i + 1
+                                        end
+                                        break
+                                    end
+                                elseif tokens[i].type == "BLOCK_END" and block_depth == 1 then
+                                    -- Found endblock for this block
+                                    block_depth = block_depth - 1
+                                    i = i + 1
+                                    if i <= #tokens and tokens[i].type == "STMT_END" then
+                                        i = i + 1
+                                    end
+                                    break
+                                end
+                            end
+                        elseif tokens[i].type == "STMT_END" then
+                            i = i + 1
+                        else
+                            i = i + 1
+                        end
+                    end
+
+                    if block_depth > 0 then
+                        error("Unclosed block '" .. block_name .. "'")
+                    end
+                elseif tokens[i].type == "BLOCK_END" then
+                    error("endblock without matching block")
+                else
+                    error("Only block statements allowed in child templates")
+                end
+            else
+                -- Statement before extends
+                content_before_extends = true
+                i = i + 1
+            end
+        elseif token.type == "TEXT" and not token.value:match("^%s*$") then
+            -- Non-whitespace text content
+            if extends_found then
+                error("Only block statements and whitespace allowed in child templates")
+            else
+                content_before_extends = true
+            end
+            i = i + 1
+        elseif token.type == "EXPR_START" or token.type == "COMPONENT_START" then
+            -- Other content before extends
+            if extends_found then
+                error("Only block statements and whitespace allowed in child templates")
+            else
+                content_before_extends = true
+            end
+            i = i + 1
+        else
+            i = i + 1
+        end
+    end
+
+    -- If this is an inheritance template, merge with parent
+    if parent_template_name then
+        if processing_templates[parent_template_name] then
+            -- Circular dependency detected, handle gracefully
+            processing_templates[parent_template_name] = nil
+            -- Fall through to normal processing without inheritance
+        end
+
+        if not template_registry[parent_template_name] then
+            error("Template '" .. parent_template_name .. "' not found")
+        end
+
+        processing_templates[parent_template_name] = true
+
+        -- Extract child blocks as token arrays
+        local child_blocks = {} -- block_name -> {tokens}
+        local child_tokens = Tokenizer.tokenize(template_str)
+
+        -- Skip to after extends
+        local i = 1
+        while i <= #child_tokens do
+            if child_tokens[i].type == "STMT_START" then
+                i = i + 1
+                if i <= #child_tokens and child_tokens[i].type == "EXTENDS" then
+                    -- Skip extends statement
+                    while i <= #child_tokens and child_tokens[i].type ~= "STMT_END" do
+                        i = i + 1
+                    end
+                    if i <= #child_tokens then i = i + 1 end
+                    break
+                end
+            elseif child_tokens[i].type == "TEXT" and child_tokens[i].value:match("^%s*$") then
+                i = i + 1
+            else
+                break
+            end
+        end
+
+        -- Parse blocks
+        while i <= #child_tokens do
+            if child_tokens[i].type == "STMT_START" then
+                i = i + 1
+                if i <= #child_tokens and child_tokens[i].type == "BLOCK_START" then
+                    i = i + 1
+                    if i <= #child_tokens and child_tokens[i].type == "IDENTIFIER" then
+                        local block_name = child_tokens[i].value
+                        i = i + 1
+
+                        if i <= #child_tokens and child_tokens[i].type == "STMT_END" then
+                            i = i + 1
+
+                            -- Collect block content tokens
+                            local content_tokens = {}
+                            local block_depth = 1
+                            while i <= #child_tokens and block_depth > 0 do
+                                if child_tokens[i].type == "STMT_START" then
+                                    i = i + 1
+                                    if i <= #child_tokens and child_tokens[i].type == "BLOCK_START" then
+                                        block_depth = block_depth + 1
+                                    elseif i <= #child_tokens and child_tokens[i].type == "BLOCK_END" then
+                                        block_depth = block_depth - 1
+                                        if block_depth == 0 then
+                                            break
+                                        end
+                                    end
+                                elseif child_tokens[i].type == "STMT_END" then
+                                    i = i + 1
+                                else
+                                    table.insert(content_tokens, child_tokens[i])
+                                    i = i + 1
+                                end
+                            end
+
+                            child_blocks[block_name] = content_tokens
+                        end
+                    end
+                end
+            else
+                i = i + 1
+            end
+        end
+
+        -- Parse all blocks in the template
+        local pos = 1
+        while pos <= #template_str do
+            -- Find next block start
+            local block_start_pos = template_str:find("{% block ", pos)
+            if not block_start_pos then break end
+
+            -- Extract block name
+            local name_start = block_start_pos + #"{% block "
+            local name_end = template_str:find(" %}", name_start)
+            if not name_end then break end
+
+            local block_name = template_str:sub(name_start, name_end - 1)
+
+            -- Find block content start and end
+            local content_start = name_end + #" %}"
+            local endblock_pos = template_str:find("{% endblock %}", content_start)
+            if not endblock_pos then break end
+
+            local content = template_str:sub(content_start, endblock_pos - 1)
+            -- Trim whitespace but preserve internal formatting
+            content = content:gsub("^%s*(.-)%s*$", "%1")
+
+            child_blocks[block_name] = content
+            pos = endblock_pos + #"{% endblock %}"
+        end
+
+        -- Tokenize parent template and replace blocks at token level
+        local parent_tokens = Tokenizer.tokenize(template_registry[parent_template_name])
+        tokens = {}
+
+        local i = 1
+        while i <= #parent_tokens do
+            local token = parent_tokens[i]
+            if token.type == "STMT_START" then
+                -- Check if previous token was whitespace that should be consumed
+                local prev_token_idx = i - 1
+                local consumed_whitespace = false
+                if prev_token_idx >= 1 and parent_tokens[prev_token_idx].type == "TEXT" and parent_tokens[prev_token_idx].value:match("^%s*$") then
+                    -- Remove the whitespace token
+                    table.remove(tokens, #tokens)
+                    consumed_whitespace = true
+                end
+
+                i = i + 1
+                if i <= #parent_tokens and parent_tokens[i].type == "BLOCK_START" then
+                    i = i + 1
+                    if i <= #parent_tokens and parent_tokens[i].type == "IDENTIFIER" then
+                        local block_name = parent_tokens[i].value
+                        i = i + 1
+
+                        if i <= #parent_tokens and parent_tokens[i].type == "STMT_END" then
+                            i = i + 1
+
+                            -- Check if child overrides this block
+                            if child_blocks[block_name] then
+                                -- Check if parent block is empty (no content between block tags)
+                                local parent_block_start = i
+                                local is_empty_block = true
+                                local temp_depth = 1
+                                local temp_i = i
+                                while temp_i <= #parent_tokens and temp_depth > 0 do
+                                    local temp_token = parent_tokens[temp_i]
+                                    if temp_token.type == "STMT_START" then
+                                        temp_i = temp_i + 1
+                                        if temp_i <= #parent_tokens and parent_tokens[temp_i].type == "BLOCK_START" then
+                                            temp_depth = temp_depth + 1
+                                        elseif temp_i <= #parent_tokens and parent_tokens[temp_i].type == "BLOCK_END" then
+                                            temp_depth = temp_depth - 1
+                                            if temp_depth == 0 then
+                                                break
+                                            end
+                                        end
+                                    elseif temp_token.type == "STMT_END" then
+                                        temp_i = temp_i + 1
+                                    else
+                                        if temp_token.type ~= "TEXT" or not temp_token.value:match("^%s*$") then
+                                            is_empty_block = false
+                                        end
+                                        temp_i = temp_i + 1
+                                    end
+                                end
+
+                                -- Replace with child content tokens
+                                local child_tokens = child_blocks[block_name]
+                                if is_empty_block then
+                                    -- For empty parent blocks, trim all leading/trailing whitespace from child
+                                    local start_idx = 1
+                                    while start_idx <= #child_tokens and child_tokens[start_idx].type == "TEXT" and child_tokens[start_idx].value:match("^%s*$") do
+                                        start_idx = start_idx + 1
+                                    end
+                                    local end_idx = #child_tokens
+                                    while end_idx >= start_idx and child_tokens[end_idx].type == "TEXT" and child_tokens[end_idx].value:match("^%s*$") do
+                                        end_idx = end_idx - 1
+                                    end
+                                    for j = start_idx, end_idx do
+                                        table.insert(tokens, child_tokens[j])
+                                    end
+                                else
+                                    -- For non-empty parent blocks, preserve child formatting
+                                    for _, child_token in ipairs(child_tokens) do
+                                        table.insert(tokens, child_token)
+                                    end
+                                end
+                                -- Skip parent content until endblock
+                                local block_depth = 1
+                                while i <= #parent_tokens and block_depth > 0 do
+                                    local block_token = parent_tokens[i]
+                                    if block_token.type == "STMT_START" then
+                                        i = i + 1
+                                        if i <= #parent_tokens and parent_tokens[i].type == "BLOCK_START" then
+                                            block_depth = block_depth + 1
+                                        elseif i <= #parent_tokens and parent_tokens[i].type == "BLOCK_END" then
+                                            block_depth = block_depth - 1
+                                            if block_depth == 0 then
+                                                i = i + 1 -- Skip BLOCK_END
+                                                if i <= #parent_tokens and parent_tokens[i].type == "STMT_END" then
+                                                    i = i + 1 -- Skip STMT_END
+                                                end
+                                                break
+                                            end
+                                        end
+                                    elseif block_token.type == "STMT_END" then
+                                        i = i + 1
+                                    else
+                                        -- Skip parent content
+                                        i = i + 1
+                                    end
+                                end
+                            else
+                                -- Keep parent content until endblock
+                                local block_depth = 1
+                                while i <= #parent_tokens and block_depth > 0 do
+                                    local block_token = parent_tokens[i]
+                                    if block_token.type == "STMT_START" then
+                                        i = i + 1
+                                        if i <= #parent_tokens and parent_tokens[i].type == "BLOCK_START" then
+                                            block_depth = block_depth + 1
+                                        elseif i <= #parent_tokens and parent_tokens[i].type == "BLOCK_END" then
+                                            block_depth = block_depth - 1
+                                            if block_depth == 0 then
+                                                i = i + 1 -- Skip BLOCK_END
+                                                if i <= #parent_tokens and parent_tokens[i].type == "STMT_END" then
+                                                    i = i + 1 -- Skip STMT_END
+                                                end
+                                                break
+                                            end
+                                        end
+                                    elseif block_token.type == "STMT_END" then
+                                        i = i + 1
+                                    else
+                                        table.insert(tokens, block_token)
+                                        i = i + 1
+                                    end
+                                end
+                            end
+                        end
+                    end
+                else
+                    -- Not a block, add back STMT_START
+                    table.insert(tokens, {type = "STMT_START"})
+                end
+            else
+                table.insert(tokens, token)
+                i = i + 1
+            end
+        end
+
+        parser = { tokens = tokens, pos = 1 }
+
+        processing_templates[parent_template_name] = nil
+    end
 
     -- Start building the function body
     table.insert(body_parts, "local context, filter_registry = ...")
@@ -1062,6 +1461,14 @@ local function compile(template_str)
                 if parser.pos > #tokens or tokens[parser.pos].type ~= "STMT_END" then
                     error("Unclosed endfor statement")
                 end
+            elseif stmt_token.type == "BLOCK_START" then
+                -- Skip block statements (shouldn't be here in final tokens)
+                while parser.pos <= #tokens and tokens[parser.pos].type ~= "STMT_END" do
+                    parser.pos = parser.pos + 1
+                end
+            elseif stmt_token.type == "BLOCK_END" then
+                -- Skip block end statements (shouldn't be here in final tokens)
+                parser.pos = parser.pos + 1
             else
                 error("Unknown statement type: " .. stmt_token.type)
             end
