@@ -51,32 +51,45 @@ local function tokenize_stmt(input)
         elseif is_alpha(c) then
             -- Identifier or keyword
             local start = pos
-            while pos <= len and (is_alnum(input:sub(pos, pos)) or input:sub(pos, pos) == "_") do
+            while
+                pos <= len
+                and (is_alnum(input:sub(pos, pos)) or input:sub(pos, pos) == "_")
+            do
                 pos = pos + 1
             end
             local word = input:sub(start, pos - 1)
 
             -- Check for control flow keywords
             if word == "if" then
-                table.insert(tokens, {type = "IF_START"})
+                table.insert(tokens, { type = "IF_START" })
             elseif word == "endif" then
-                table.insert(tokens, {type = "IF_END"})
+                table.insert(tokens, { type = "IF_END" })
             elseif word == "for" then
-                table.insert(tokens, {type = "FOR_START"})
+                table.insert(tokens, { type = "FOR_START" })
             elseif word == "endfor" then
-                table.insert(tokens, {type = "FOR_END"})
+                table.insert(tokens, { type = "FOR_END" })
             elseif word == "extends" then
-                table.insert(tokens, {type = "EXTENDS"})
+                table.insert(tokens, { type = "EXTENDS" })
             elseif word == "block" then
-                table.insert(tokens, {type = "BLOCK_START"})
+                table.insert(tokens, { type = "BLOCK_START" })
             elseif word == "endblock" then
-                table.insert(tokens, {type = "BLOCK_END"})
-            elseif word == "or" or word == "and" or word == "not" or word == "true" or word == "false" or word == "nil" or word == "in" or word == "pairs" or word == "ipairs" then
+                table.insert(tokens, { type = "BLOCK_END" })
+            elseif
+                word == "or"
+                or word == "and"
+                or word == "not"
+                or word == "true"
+                or word == "false"
+                or word == "nil"
+                or word == "in"
+                or word == "pairs"
+                or word == "ipairs"
+            then
                 -- Logical operators, boolean literals, and for loop keywords
-                table.insert(tokens, {type = "KEYWORD", value = word})
+                table.insert(tokens, { type = "KEYWORD", value = word })
             else
                 -- Regular identifier
-                table.insert(tokens, {type = "IDENTIFIER", value = word})
+                table.insert(tokens, { type = "IDENTIFIER", value = word })
             end
         elseif c == '"' or c == "'" then
             -- String literal
@@ -90,64 +103,64 @@ local function tokenize_stmt(input)
                 pos = pos + 1
             end
             local str_value = input:sub(start, pos - 1)
-            table.insert(tokens, {type = "LITERAL", value = str_value})
+            table.insert(tokens, { type = "LITERAL", value = str_value })
             pos = pos + 1 -- Skip closing quote
         elseif c == "." then
             -- Check for .. operator
             if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "." then
-                table.insert(tokens, {type = "OPERATOR", value = ".."})
+                table.insert(tokens, { type = "OPERATOR", value = ".." })
                 pos = pos + 2
             else
-                table.insert(tokens, {type = "PUNCTUATION", value = "."})
+                table.insert(tokens, { type = "PUNCTUATION", value = "." })
                 pos = pos + 1
             end
         elseif c == "=" then
             -- Check for == operator
             if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "=" then
-                table.insert(tokens, {type = "OPERATOR", value = "=="})
+                table.insert(tokens, { type = "OPERATOR", value = "==" })
                 pos = pos + 2
             else
-                table.insert(tokens, {type = "OPERATOR", value = "="})
+                table.insert(tokens, { type = "OPERATOR", value = "=" })
                 pos = pos + 1
             end
         elseif c == "~" then
             -- Check for ~= operator
             if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "=" then
-                table.insert(tokens, {type = "OPERATOR", value = "~="})
+                table.insert(tokens, { type = "OPERATOR", value = "~=" })
                 pos = pos + 2
             else
                 error("Invalid character '~' in statement at position " .. pos)
             end
         elseif c == ">" then
             if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "=" then
-                table.insert(tokens, {type = "OPERATOR", value = ">="})
+                table.insert(tokens, { type = "OPERATOR", value = ">=" })
                 pos = pos + 2
             else
-                table.insert(tokens, {type = "OPERATOR", value = ">"})
+                table.insert(tokens, { type = "OPERATOR", value = ">" })
                 pos = pos + 1
             end
         elseif c == "<" then
             if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "=" then
-                table.insert(tokens, {type = "OPERATOR", value = "<="})
+                table.insert(tokens, { type = "OPERATOR", value = "<=" })
                 pos = pos + 2
             else
-                table.insert(tokens, {type = "OPERATOR", value = "<"})
+                table.insert(tokens, { type = "OPERATOR", value = "<" })
                 pos = pos + 1
             end
         elseif c == "+" or c == "-" or c == "*" or c == "/" then
-            table.insert(tokens, {type = "OPERATOR", value = c})
+            table.insert(tokens, { type = "OPERATOR", value = c })
             pos = pos + 1
         elseif c == "." then
             -- Check for .. operator
             if pos + 1 <= len and input:sub(pos + 1, pos + 1) == "." then
-                table.insert(tokens, {type = "OPERATOR", value = ".."})
+                table.insert(tokens, { type = "OPERATOR", value = ".." })
                 pos = pos + 2
             else
-                table.insert(tokens, {type = "PUNCTUATION", value = "."})
+                table.insert(tokens, { type = "PUNCTUATION", value = "." })
                 pos = pos + 1
             end
         elseif c == "(" or c == ")" or c == "," then
-            table.insert(tokens, {type = "PUNCTUATION", value = c})
+            table.insert(tokens, { type = "PUNCTUATION", value = c })
             pos = pos + 1
         elseif c:match("%d") then
             -- Number literal
@@ -156,7 +169,7 @@ local function tokenize_stmt(input)
                 pos = pos + 1
             end
             local num_str = input:sub(start, pos - 1)
-            table.insert(tokens, {type = "LITERAL", value = tonumber(num_str)})
+            table.insert(tokens, { type = "LITERAL", value = tonumber(num_str) })
         else
             error("Invalid character '" .. c .. "' in statement at position " .. pos)
         end
@@ -187,19 +200,29 @@ local function tokenize_expr(input)
             end
             local value = input:sub(start, pos - 1)
             -- Check if it's a keyword
-            if value == "or" or value == "and" or value == "not" or value == "true" or value == "false" or value == "nil" then
-                table.insert(tokens, {type = "KEYWORD", value = value})
+            if
+                value == "or"
+                or value == "and"
+                or value == "not"
+                or value == "true"
+                or value == "false"
+                or value == "nil"
+            then
+                table.insert(tokens, { type = "KEYWORD", value = value })
             else
-                table.insert(tokens, {type = "IDENTIFIER", value = value})
+                table.insert(tokens, { type = "IDENTIFIER", value = value })
             end
         elseif is_digit(c) then
             -- Number literal
             local start = pos
-            while pos <= len and (is_digit(input:sub(pos, pos)) or input:sub(pos, pos) == ".") do
+            while
+                pos <= len
+                and (is_digit(input:sub(pos, pos)) or input:sub(pos, pos) == ".")
+            do
                 pos = pos + 1
             end
             local value = input:sub(start, pos - 1)
-            table.insert(tokens, {type = "LITERAL", value = tonumber(value) or value})
+            table.insert(tokens, { type = "LITERAL", value = tonumber(value) or value })
         elseif c == '"' or c == "'" then
             -- String literal
             local quote = c
@@ -207,7 +230,7 @@ local function tokenize_expr(input)
             local start = pos
             while pos <= len and input:sub(pos, pos) ~= quote do
                 if input:sub(pos, pos) == "\\" then
-                    pos = pos + 2  -- Skip escaped char
+                    pos = pos + 2 -- Skip escaped char
                 else
                     pos = pos + 1
                 end
@@ -216,17 +239,26 @@ local function tokenize_expr(input)
                 error("Unclosed string literal")
             end
             local value = input:sub(start, pos - 1)
-            table.insert(tokens, {type = "LITERAL", value = value})
-            pos = pos + 1  -- Skip closing quote
+            table.insert(tokens, { type = "LITERAL", value = value })
+            pos = pos + 1 -- Skip closing quote
         elseif c == "|" then
             -- Check for |> pipeline operator
             if pos + 1 <= len and input:sub(pos + 1, pos + 1) == ">" then
-                table.insert(tokens, {type = "OPERATOR", value = "|>"})
+                table.insert(tokens, { type = "OPERATOR", value = "|>" })
                 pos = pos + 2
             else
                 error("Invalid character '|' in expression at position " .. pos)
             end
-        elseif c == "+" or c == "-" or c == "*" or c == "/" or c == "=" or c == ">" or c == "<" or c == "!" then
+        elseif
+            c == "+"
+            or c == "-"
+            or c == "*"
+            or c == "/"
+            or c == "="
+            or c == ">"
+            or c == "<"
+            or c == "!"
+        then
             -- Operators
             local start = pos
             pos = pos + 1
@@ -234,10 +266,10 @@ local function tokenize_expr(input)
                 pos = pos + 1
             end
             local value = input:sub(start, pos - 1)
-            table.insert(tokens, {type = "OPERATOR", value = value})
+            table.insert(tokens, { type = "OPERATOR", value = value })
         elseif c == "(" or c == ")" or c == "," or c == "." then
             -- Punctuation
-            table.insert(tokens, {type = "PUNCTUATION", value = c})
+            table.insert(tokens, { type = "PUNCTUATION", value = c })
             pos = pos + 1
         else
             error("Unexpected character in expression: " .. c .. " at position " .. pos)
@@ -265,10 +297,19 @@ function Tokenizer.tokenize(template_str)
         -- Find the nearest delimiter
         local next_pos
         local delimiter_type
-        if component_close_start and (not component_start or component_close_start < component_start) and (not start or component_close_start < start) and (not stmt_start or component_close_start < stmt_start) then
+        if
+            component_close_start
+            and (not component_start or component_close_start < component_start)
+            and (not start or component_close_start < start)
+            and (not stmt_start or component_close_start < stmt_start)
+        then
             next_pos = component_close_start
             delimiter_type = "component_close"
-        elseif component_start and (not start or component_start < start) and (not stmt_start or component_start < stmt_start) then
+        elseif
+            component_start
+            and (not start or component_start < start)
+            and (not stmt_start or component_start < stmt_start)
+        then
             next_pos = component_start
             delimiter_type = "component"
         elseif start and (not stmt_start or start < stmt_start) then
@@ -286,7 +327,7 @@ function Tokenizer.tokenize(template_str)
         if next_pos > pos then
             local text = template_str:sub(pos, next_pos - 1)
             if text ~= "" then
-                table.insert(tokens, {type = "TEXT", value = text})
+                table.insert(tokens, { type = "TEXT", value = text })
             end
         end
 
@@ -294,7 +335,7 @@ function Tokenizer.tokenize(template_str)
             break
         elseif delimiter_type == "component" then
             -- Parse component opening tag: <ComponentName attr="value" />
-            table.insert(tokens, {type = "COMPONENT_START"})
+            table.insert(tokens, { type = "COMPONENT_START" })
             pos = next_pos + 1
 
             -- Find component tag end (either /> or >)
@@ -310,70 +351,99 @@ function Tokenizer.tokenize(template_str)
                 error("Invalid component name at position " .. pos)
             end
 
-            table.insert(tokens, {type = "COMPONENT_NAME", value = component_name})
+            table.insert(tokens, { type = "COMPONENT_NAME", value = component_name })
 
-             -- Parse attributes (attr="value", attr='value', or attr=expression)
-             local attr_start = #component_name + 1
-             local attr_string = tag_content:sub(attr_start):match("^%s*(.-)%s*$")
-             if attr_string and attr_string ~= "" then
-                 -- Parse individual attributes, handling quoted values with spaces
-                 local parsed_attrs = {}
-                 local malformed_attrs = {}
-                 local pos = 1
-                 while pos <= #attr_string do
-                     -- Skip whitespace
-                     pos = attr_string:find("[^%s]", pos) or (#attr_string + 1)
-                     if pos > #attr_string then break end
+            -- Parse attributes (attr="value", attr='value', or attr=expression)
+            local attr_start = #component_name + 1
+            local attr_string = tag_content:sub(attr_start):match("^%s*(.-)%s*$")
+            if attr_string and attr_string ~= "" then
+                -- Parse individual attributes, handling quoted values with spaces
+                local parsed_attrs = {}
+                local malformed_attrs = {}
+                local pos = 1
+                while pos <= #attr_string do
+                    -- Skip whitespace
+                    pos = attr_string:find("[^%s]", pos) or (#attr_string + 1)
+                    if pos > #attr_string then
+                        break
+                    end
 
-                     -- Find attr=
-                     local attr_start_pos = pos
-                     local equal_pos = attr_string:find("=", pos)
-                     if not equal_pos then break end
+                    -- Find attr=
+                    local attr_start_pos = pos
+                    local equal_pos = attr_string:find("=", pos)
+                    if not equal_pos then
+                        break
+                    end
 
-                     local attr = attr_string:sub(attr_start_pos, equal_pos - 1):match("^%s*(.-)%s*$")
-                     pos = equal_pos + 1
+                    local attr = attr_string
+                        :sub(attr_start_pos, equal_pos - 1)
+                        :match("^%s*(.-)%s*$")
+                    pos = equal_pos + 1
 
-                     -- Find the value (handle quoted strings)
-                     local value
-                     if attr_string:sub(pos, pos) == '"' or attr_string:sub(pos, pos) == "'" then
-                         -- Quoted string
-                         local quote = attr_string:sub(pos, pos)
-                         pos = pos + 1
-                         local value_start = pos
-                         while pos <= #attr_string and attr_string:sub(pos, pos) ~= quote do
-                             if attr_string:sub(pos, pos) == "\\" then
-                                 pos = pos + 1 -- Skip escaped char
-                             end
-                             pos = pos + 1
-                         end
-                         value = attr_string:sub(value_start, pos - 1)
-                         pos = pos + 1 -- Skip closing quote
-                         parsed_attrs[attr] = { type = "string", value = value }
-                      else
-                         -- Unquoted expression (until next space or end)
-                         local value_start = pos
-                         while pos <= #attr_string and attr_string:sub(pos, pos) ~= " " do
-                             pos = pos + 1
-                         end
-                         value = attr_string:sub(value_start, pos - 1)
+                    -- Find the value (handle quoted strings)
+                    local value
+                    if
+                        attr_string:sub(pos, pos) == '"'
+                        or attr_string:sub(pos, pos) == "'"
+                    then
+                        -- Quoted string
+                        local quote = attr_string:sub(pos, pos)
+                        pos = pos + 1
+                        local value_start = pos
+                        while
+                            pos <= #attr_string
+                            and attr_string:sub(pos, pos) ~= quote
+                        do
+                            if attr_string:sub(pos, pos) == "\\" then
+                                pos = pos + 1 -- Skip escaped char
+                            end
+                            pos = pos + 1
+                        end
+                        value = attr_string:sub(value_start, pos - 1)
+                        pos = pos + 1 -- Skip closing quote
+                        parsed_attrs[attr] = { type = "string", value = value }
+                    else
+                        -- Unquoted expression (until next space or end)
+                        local value_start = pos
+                        while
+                            pos <= #attr_string and attr_string:sub(pos, pos) ~= " "
+                        do
+                            pos = pos + 1
+                        end
+                        value = attr_string:sub(value_start, pos - 1)
 
-                         -- Validate unquoted attribute for malformed syntax
-                         local is_valid, error_msg = validate_unquoted_attribute(value)
-                         if not is_valid then
-                             -- Mark as malformed but still include in attributes for now
-                             parsed_attrs[attr] = { type = "expression", value = value, malformed = true, error = error_msg }
-                             malformed_attrs[attr] = error_msg
-                         else
-                             parsed_attrs[attr] = { type = "expression", value = value }
-                         end
-                     end
-                 end
-                 table.insert(tokens, {type = "COMPONENT_ATTRS", value = parsed_attrs, malformed = malformed_attrs})
-             end
+                        -- Validate unquoted attribute for malformed syntax
+                        local is_valid, error_msg = validate_unquoted_attribute(value)
+                        if not is_valid then
+                            -- Mark as malformed but still include in attributes for now
+                            parsed_attrs[attr] = {
+                                type = "expression",
+                                value = value,
+                                malformed = true,
+                                error = error_msg,
+                            }
+                            malformed_attrs[attr] = error_msg
+                        else
+                            parsed_attrs[attr] = { type = "expression", value = value }
+                        end
+                    end
+                end
+                table.insert(
+                    tokens,
+                    {
+                        type = "COMPONENT_ATTRS",
+                        value = parsed_attrs,
+                        malformed = malformed_attrs,
+                    }
+                )
+            end
 
             -- Check if self-closing
             local is_self_closing = template_str:sub(tag_end, tag_end) == "/"
-            table.insert(tokens, {type = is_self_closing and "COMPONENT_SELF_CLOSE" or "COMPONENT_OPEN"})
+            table.insert(
+                tokens,
+                { type = is_self_closing and "COMPONENT_SELF_CLOSE" or "COMPONENT_OPEN" }
+            )
 
             if is_self_closing then
                 -- Skip the />
@@ -382,10 +452,9 @@ function Tokenizer.tokenize(template_str)
                 -- Skip the >
                 pos = tag_end + 1
             end
-
         elseif delimiter_type == "component_close" then
             -- Parse component closing tag: </ComponentName>
-            table.insert(tokens, {type = "COMPONENT_CLOSE"})
+            table.insert(tokens, { type = "COMPONENT_CLOSE" })
             pos = next_pos + 2
 
             -- Find closing tag end
@@ -401,12 +470,11 @@ function Tokenizer.tokenize(template_str)
                 error("Invalid component closing tag at position " .. pos)
             end
 
-            table.insert(tokens, {type = "COMPONENT_NAME", value = component_name})
+            table.insert(tokens, { type = "COMPONENT_NAME", value = component_name })
             pos = close_end + 1
-
         elseif delimiter_type == "expr" then
             -- Expression start
-            table.insert(tokens, {type = "EXPR_START"})
+            table.insert(tokens, { type = "EXPR_START" })
             pos = end_start + 1
 
             -- Find expression end
@@ -422,11 +490,11 @@ function Tokenizer.tokenize(template_str)
                 table.insert(tokens, t)
             end
 
-            table.insert(tokens, {type = "EXPR_END"})
+            table.insert(tokens, { type = "EXPR_END" })
             pos = expr_end_pos + 1
         elseif delimiter_type == "stmt" then
             -- Statement start
-            table.insert(tokens, {type = "STMT_START"})
+            table.insert(tokens, { type = "STMT_START" })
             pos = stmt_end_start + 1
 
             -- Find statement end
@@ -442,12 +510,13 @@ function Tokenizer.tokenize(template_str)
                 table.insert(tokens, t)
             end
 
-            table.insert(tokens, {type = "STMT_END"})
+            table.insert(tokens, { type = "STMT_END" })
             pos = stmt_end_pos + 1
         end
-    end  -- closes the while loop
+    end -- closes the while loop
 
     return tokens
 end
 
 return Tokenizer
+

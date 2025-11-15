@@ -510,7 +510,11 @@ local function compile(template_str)
                 extends_found = true
 
                 i = i + 1
-                if i > #tokens or tokens[i].type ~= "LITERAL" or type(tokens[i].value) ~= "string" then
+                if
+                    i > #tokens
+                    or tokens[i].type ~= "LITERAL"
+                    or type(tokens[i].value) ~= "string"
+                then
                     error("Expected quoted template name after extends")
                 elseif tokens[i].value == "" then
                     error("extends requires a non-empty template name")
@@ -550,16 +554,25 @@ local function compile(template_str)
                                     block_depth = block_depth - 1
                                     if block_depth == 0 then
                                         i = i + 1
-                                        if i <= #tokens and tokens[i].type == "STMT_END" then
+                                        if
+                                            i <= #tokens
+                                            and tokens[i].type == "STMT_END"
+                                        then
                                             i = i + 1
                                         end
                                         break
                                     end
-                                elseif tokens[i].type == "BLOCK_END" and block_depth == 1 then
+                                elseif
+                                    tokens[i].type == "BLOCK_END"
+                                    and block_depth == 1
+                                then
                                     -- Found endblock for this block
                                     block_depth = block_depth - 1
                                     i = i + 1
-                                    if i <= #tokens and tokens[i].type == "STMT_END" then
+                                    if
+                                        i <= #tokens
+                                        and tokens[i].type == "STMT_END"
+                                    then
                                         i = i + 1
                                     end
                                     break
@@ -611,7 +624,11 @@ local function compile(template_str)
         if processing_templates[parent_template_name] then
             -- Circular dependency detected
             processing_templates[parent_template_name] = nil
-            error("Circular template inheritance detected involving '" .. parent_template_name .. "'")
+            error(
+                "Circular template inheritance detected involving '"
+                    .. parent_template_name
+                    .. "'"
+            )
         end
 
         if not template_registry[parent_template_name] then
@@ -634,10 +651,14 @@ local function compile(template_str)
                     while i <= #child_tokens and child_tokens[i].type ~= "STMT_END" do
                         i = i + 1
                     end
-                    if i <= #child_tokens then i = i + 1 end
+                    if i <= #child_tokens then
+                        i = i + 1
+                    end
                     break
                 end
-            elseif child_tokens[i].type == "TEXT" and child_tokens[i].value:match("^%s*$") then
+            elseif
+                child_tokens[i].type == "TEXT" and child_tokens[i].value:match("^%s*$")
+            then
                 i = i + 1
             else
                 break
@@ -654,7 +675,10 @@ local function compile(template_str)
                         local block_name = child_tokens[i].value
                         i = i + 1
 
-                        if i <= #child_tokens and child_tokens[i].type == "STMT_END" then
+                        if
+                            i <= #child_tokens
+                            and child_tokens[i].type == "STMT_END"
+                        then
                             i = i + 1
 
                             -- Collect block content tokens
@@ -663,25 +687,46 @@ local function compile(template_str)
                             while i <= #child_tokens and block_depth > 0 do
                                 if child_tokens[i].type == "STMT_START" then
                                     i = i + 1
-                                    if i <= #child_tokens and child_tokens[i].type == "BLOCK_START" then
+                                    if
+                                        i <= #child_tokens
+                                        and child_tokens[i].type == "BLOCK_START"
+                                    then
                                         block_depth = block_depth + 1
-                                    elseif i <= #child_tokens and child_tokens[i].type == "BLOCK_END" then
+                                    elseif
+                                        i <= #child_tokens
+                                        and child_tokens[i].type == "BLOCK_END"
+                                    then
                                         block_depth = block_depth - 1
                                         if block_depth == 0 then
                                             break
                                         end
                                     else
                                         -- For non-block statements (if, for, etc.), include the entire statement
-                                        table.insert(content_tokens, {type = "STMT_START"})
+                                        table.insert(
+                                            content_tokens,
+                                            { type = "STMT_START" }
+                                        )
                                         table.insert(content_tokens, child_tokens[i])
                                         i = i + 1
                                         -- Collect the rest of the statement until STMT_END
-                                        while i <= #child_tokens and child_tokens[i].type ~= "STMT_END" do
-                                            table.insert(content_tokens, child_tokens[i])
+                                        while
+                                            i <= #child_tokens
+                                            and child_tokens[i].type ~= "STMT_END"
+                                        do
+                                            table.insert(
+                                                content_tokens,
+                                                child_tokens[i]
+                                            )
                                             i = i + 1
                                         end
-                                        if i <= #child_tokens and child_tokens[i].type == "STMT_END" then
-                                            table.insert(content_tokens, child_tokens[i])
+                                        if
+                                            i <= #child_tokens
+                                            and child_tokens[i].type == "STMT_END"
+                                        then
+                                            table.insert(
+                                                content_tokens,
+                                                child_tokens[i]
+                                            )
                                             i = i + 1
                                         end
                                         goto continue
@@ -709,19 +754,25 @@ local function compile(template_str)
         while pos <= #template_str do
             -- Find next block start
             local block_start_pos = template_str:find("{% block ", pos)
-            if not block_start_pos then break end
+            if not block_start_pos then
+                break
+            end
 
             -- Extract block name
             local name_start = block_start_pos + #"{% block "
             local name_end = template_str:find(" %}", name_start)
-            if not name_end then break end
+            if not name_end then
+                break
+            end
 
             local block_name = template_str:sub(name_start, name_end - 1)
 
             -- Find block content start and end
             local content_start = name_end + #" %}"
             local endblock_pos = template_str:find("{% endblock %}", content_start)
-            if not endblock_pos then break end
+            if not endblock_pos then
+                break
+            end
 
             local content = template_str:sub(content_start, endblock_pos - 1)
             -- Trim whitespace but preserve internal formatting
@@ -756,12 +807,17 @@ local function compile(template_str)
             -- Skip extends statements in parent templates (circular dependency should be caught earlier)
             if token.type == "STMT_START" then
                 local next_token_idx = i + 1
-                if next_token_idx <= #parent_tokens and parent_tokens[next_token_idx].type == "EXTENDS" then
+                if
+                    next_token_idx <= #parent_tokens
+                    and parent_tokens[next_token_idx].type == "EXTENDS"
+                then
                     -- Skip the entire extends statement
                     while i <= #parent_tokens and parent_tokens[i].type ~= "STMT_END" do
                         i = i + 1
                     end
-                    if i <= #parent_tokens then i = i + 1 end -- Skip STMT_END
+                    if i <= #parent_tokens then
+                        i = i + 1
+                    end -- Skip STMT_END
                     goto continue
                 end
             end
@@ -769,7 +825,11 @@ local function compile(template_str)
                 -- Check if previous token was whitespace that should be consumed
                 local prev_token_idx = i - 1
                 local consumed_whitespace = false
-                if prev_token_idx >= 1 and parent_tokens[prev_token_idx].type == "TEXT" and parent_tokens[prev_token_idx].value:match("^%s*$") then
+                if
+                    prev_token_idx >= 1
+                    and parent_tokens[prev_token_idx].type == "TEXT"
+                    and parent_tokens[prev_token_idx].value:match("^%s*$")
+                then
                     -- Remove the whitespace token
                     table.remove(tokens, #tokens)
                     consumed_whitespace = true
@@ -778,11 +838,17 @@ local function compile(template_str)
                 i = i + 1
                 if i <= #parent_tokens and parent_tokens[i].type == "BLOCK_START" then
                     i = i + 1
-                    if i <= #parent_tokens and parent_tokens[i].type == "IDENTIFIER" then
+                    if
+                        i <= #parent_tokens
+                        and parent_tokens[i].type == "IDENTIFIER"
+                    then
                         local block_name = parent_tokens[i].value
                         i = i + 1
 
-                        if i <= #parent_tokens and parent_tokens[i].type == "STMT_END" then
+                        if
+                            i <= #parent_tokens
+                            and parent_tokens[i].type == "STMT_END"
+                        then
                             i = i + 1
 
                             -- Check if child overrides this block
@@ -796,9 +862,17 @@ local function compile(template_str)
                                     local temp_token = parent_tokens[temp_i]
                                     if temp_token.type == "STMT_START" then
                                         temp_i = temp_i + 1
-                                        if temp_i <= #parent_tokens and parent_tokens[temp_i].type == "BLOCK_START" then
+                                        if
+                                            temp_i <= #parent_tokens
+                                            and parent_tokens[temp_i].type
+                                                == "BLOCK_START"
+                                        then
                                             temp_depth = temp_depth + 1
-                                        elseif temp_i <= #parent_tokens and parent_tokens[temp_i].type == "BLOCK_END" then
+                                        elseif
+                                            temp_i <= #parent_tokens
+                                            and parent_tokens[temp_i].type
+                                                == "BLOCK_END"
+                                        then
                                             temp_depth = temp_depth - 1
                                             if temp_depth == 0 then
                                                 break
@@ -807,7 +881,10 @@ local function compile(template_str)
                                     elseif temp_token.type == "STMT_END" then
                                         temp_i = temp_i + 1
                                     else
-                                        if temp_token.type ~= "TEXT" or not temp_token.value:match("^%s*$") then
+                                        if
+                                            temp_token.type ~= "TEXT"
+                                            or not temp_token.value:match("^%s*$")
+                                        then
                                             is_empty_block = false
                                         end
                                         temp_i = temp_i + 1
@@ -819,11 +896,19 @@ local function compile(template_str)
                                 if is_empty_block then
                                     -- For empty parent blocks, trim all leading/trailing whitespace from child
                                     local start_idx = 1
-                                    while start_idx <= #child_tokens and child_tokens[start_idx].type == "TEXT" and child_tokens[start_idx].value:match("^%s*$") do
+                                    while
+                                        start_idx <= #child_tokens
+                                        and child_tokens[start_idx].type == "TEXT"
+                                        and child_tokens[start_idx].value:match("^%s*$")
+                                    do
                                         start_idx = start_idx + 1
                                     end
                                     local end_idx = #child_tokens
-                                    while end_idx >= start_idx and child_tokens[end_idx].type == "TEXT" and child_tokens[end_idx].value:match("^%s*$") do
+                                    while
+                                        end_idx >= start_idx
+                                        and child_tokens[end_idx].type == "TEXT"
+                                        and child_tokens[end_idx].value:match("^%s*$")
+                                    do
                                         end_idx = end_idx - 1
                                     end
                                     for j = start_idx, end_idx do
@@ -841,13 +926,24 @@ local function compile(template_str)
                                     local block_token = parent_tokens[i]
                                     if block_token.type == "STMT_START" then
                                         i = i + 1
-                                        if i <= #parent_tokens and parent_tokens[i].type == "BLOCK_START" then
+                                        if
+                                            i <= #parent_tokens
+                                            and parent_tokens[i].type
+                                                == "BLOCK_START"
+                                        then
                                             block_depth = block_depth + 1
-                                        elseif i <= #parent_tokens and parent_tokens[i].type == "BLOCK_END" then
+                                        elseif
+                                            i <= #parent_tokens
+                                            and parent_tokens[i].type == "BLOCK_END"
+                                        then
                                             block_depth = block_depth - 1
                                             if block_depth == 0 then
                                                 i = i + 1 -- Skip BLOCK_END
-                                                if i <= #parent_tokens and parent_tokens[i].type == "STMT_END" then
+                                                if
+                                                    i <= #parent_tokens
+                                                    and parent_tokens[i].type
+                                                        == "STMT_END"
+                                                then
                                                     i = i + 1 -- Skip STMT_END
                                                 end
                                                 break
@@ -867,13 +963,24 @@ local function compile(template_str)
                                     local block_token = parent_tokens[i]
                                     if block_token.type == "STMT_START" then
                                         i = i + 1
-                                        if i <= #parent_tokens and parent_tokens[i].type == "BLOCK_START" then
+                                        if
+                                            i <= #parent_tokens
+                                            and parent_tokens[i].type
+                                                == "BLOCK_START"
+                                        then
                                             block_depth = block_depth + 1
-                                        elseif i <= #parent_tokens and parent_tokens[i].type == "BLOCK_END" then
+                                        elseif
+                                            i <= #parent_tokens
+                                            and parent_tokens[i].type == "BLOCK_END"
+                                        then
                                             block_depth = block_depth - 1
                                             if block_depth == 0 then
                                                 i = i + 1 -- Skip BLOCK_END
-                                                if i <= #parent_tokens and parent_tokens[i].type == "STMT_END" then
+                                                if
+                                                    i <= #parent_tokens
+                                                    and parent_tokens[i].type
+                                                        == "STMT_END"
+                                                then
                                                     i = i + 1 -- Skip STMT_END
                                                 end
                                                 break
@@ -891,7 +998,7 @@ local function compile(template_str)
                     end
                 else
                     -- Not a block, add back STMT_START
-                    table.insert(tokens, {type = "STMT_START"})
+                    table.insert(tokens, { type = "STMT_START" })
                 end
             else
                 table.insert(tokens, token)

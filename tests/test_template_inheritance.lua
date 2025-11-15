@@ -386,9 +386,12 @@ end
 -- Circular dependency detection
 function tests.test_circular_dependency()
     -- Register a base template
-    Template.register("circle_base.html", [[
+    Template.register(
+        "circle_base.html",
+        [[
 <div>{% block content %}Base{% endblock %}</div>
-]])
+]]
+    )
 
     -- Create a template that extends the base, but somehow create circularity
     -- Actually, let's create a simpler test: a template that extends itself
@@ -405,4 +408,3 @@ function tests.test_circular_dependency()
 end
 
 return tests
-
