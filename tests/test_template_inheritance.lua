@@ -10,7 +10,9 @@ local tests = {}
 -- Basic template inheritance with block override
 function tests.test_basic_inheritance()
     -- Register a base template
-    Template.register("base.html", [[
+    Template.register(
+        "base.html",
+        [[
 <!DOCTYPE html>
 <html>
 <head><title>{% block title %}Default Title{% endblock %}</title></head>
@@ -19,7 +21,8 @@ function tests.test_basic_inheritance()
     {% block content %}{% endblock %}
 </body>
 </html>
-]])
+]]
+    )
 
     -- Create child template that extends base
     local child_template = Template([[
@@ -39,7 +42,9 @@ function tests.test_basic_inheritance()
 <head><title>My Page</title></head>
 <body>
     <h1>Welcome</h1>
-    <p>This is my page content.</p>
+    
+<p>This is my page content.</p>
+
 </body>
 </html>
 ]]
@@ -49,12 +54,15 @@ end
 
 -- Block with default content (not overridden)
 function tests.test_block_default_content()
-    Template.register("base_with_defaults.html", [[
+    Template.register(
+        "base_with_defaults.html",
+        [[
 <div class="layout">
     {% block sidebar %}<nav>Default Navigation</nav>{% endblock %}
     <main>{% block main %}Default Content{% endblock %}</main>
 </div>
-]])
+]]
+    )
 
     local child_template = Template([[
 {% extends "base_with_defaults.html" %}
@@ -69,7 +77,8 @@ function tests.test_block_default_content()
     local expected = [[
 <div class="layout">
     <nav>Default Navigation</nav>
-    <main><h1>Custom Main Content</h1>
+    <main>
+<h1>Custom Main Content</h1>
 <p>This overrides the default.</p>
 </main>
 </div>
@@ -80,12 +89,15 @@ end
 
 -- Multiple blocks in same template
 function tests.test_multiple_blocks()
-    Template.register("multi_block_base.html", [[
+    Template.register(
+        "multi_block_base.html",
+        [[
 <header>{% block header %}Site Header{% endblock %}</header>
 <nav>{% block nav %}Navigation{% endblock %}</nav>
 <main>{% block content %}Main Content{% endblock %}</main>
 <footer>{% block footer %}Site Footer{% endblock %}</footer>
-]])
+]]
+    )
 
     local child_template = Template([[
 {% extends "multi_block_base.html" %}
@@ -105,7 +117,8 @@ function tests.test_multiple_blocks()
     local result = child_template({})
     local expected = [[
 <header>My Custom Header</header>
-<nav><ul>
+<nav>
+<ul>
     <li><a href="/">Home</a></li>
     <li><a href="/about">About</a></li>
 </ul>
@@ -119,13 +132,16 @@ end
 
 -- Nested blocks with complex content
 function tests.test_nested_block_content()
-    Template.register("article_base.html", [[
+    Template.register(
+        "article_base.html",
+        [[
 <article>
     <header>{% block header %}{% endblock %}</header>
     <section>{% block content %}{% endblock %}</section>
     <footer>{% block footer %}{% endblock %}</footer>
 </article>
-]])
+]]
+    )
 
     local child_template = Template([[
 {% extends "article_base.html" %}
@@ -161,9 +177,9 @@ function tests.test_nested_block_content()
             author = "Nibiru Team",
             date = "2024-11-14",
             body = "<p>This article explains template inheritance.</p>",
-            tags = {"templates", "inheritance", "lua"},
-            next = "/articles/components"
-        }
+            tags = { "templates", "inheritance", "lua" },
+            next = "/articles/components",
+        },
     }
 
     local result = child_template(context)
@@ -197,14 +213,17 @@ function tests.test_blocks_with_components()
     Template.component("Button", [[<button class="{{class}}">{{text}}</button>]])
     Template.component("Icon", [[<i class="icon-{{name}}"></i>]])
 
-    Template.register("component_base.html", [[
+    Template.register(
+        "component_base.html",
+        [[
 <div class="toolbar">
     {% block toolbar %}{% endblock %}
 </div>
 <div class="content">
     {% block content %}{% endblock %}
 </div>
-]])
+]]
+    )
 
     local child_template = Template([[
 {% extends "component_base.html" %}
@@ -227,8 +246,10 @@ function tests.test_blocks_with_components()
 <button class="secondary">Cancel</button>
 </div>
 <div class="content">
-    <h1>Page with Components</h1>
+    
+<h1>Page with Components</h1>
 <p>This page uses <i class="icon-star"></i> components in blocks.</p>
+
 </div>
 ]]
 
@@ -251,8 +272,14 @@ end
 function tests.test_circular_dependency()
     -- This test might be complex to implement initially
     -- For now, just ensure it doesn't cause infinite loops
-    Template.register("circular_a.html", '{% extends "circular_b.html" %}{% block content %}A{% endblock %}')
-    Template.register("circular_b.html", '{% extends "circular_a.html" %}{% block content %}B{% endblock %}')
+    Template.register(
+        "circular_a.html",
+        '{% extends "circular_b.html" %}{% block content %}A{% endblock %}'
+    )
+    Template.register(
+        "circular_b.html",
+        '{% extends "circular_a.html" %}{% block content %}B{% endblock %}'
+    )
 
     local success, err = pcall(function()
         local template = Template('{% extends "circular_a.html" %}')
@@ -292,9 +319,12 @@ end
 
 -- Block name mismatch
 function tests.test_block_name_mismatch()
-    Template.register("mismatch_base.html", [[
+    Template.register(
+        "mismatch_base.html",
+        [[
 <div>{% block content %}Default{% endblock %}</div>
-]])
+]]
+    )
 
     local success, err = pcall(function()
         local template = Template([[
@@ -345,3 +375,4 @@ function tests.test_extends_after_content()
 end
 
 return tests
+
