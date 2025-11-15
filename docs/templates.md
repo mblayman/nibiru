@@ -686,9 +686,9 @@ Output:
 
 Components are inlined during compilation for maximum performance - no runtime component resolution overhead.
 
-## Advanced Features
+### Advanced Features
 
-### Component Composition
+#### Component Composition
 
 Components can use other components, enabling complex UI hierarchies:
 
@@ -702,7 +702,7 @@ Template.component("Form", [[
 ]])
 ```
 
-### Default Values
+#### Default Values
 
 Use Lua expressions for default values in component attributes:
 
@@ -713,6 +713,241 @@ Template.component("Button", [[
 </button>
 ]])
 ```
+
+## Template Inheritance
+
+Nibiru templates support template inheritance using `{% extends %}` and `{% block %}` directives. This allows you to create base templates with common structure and override specific sections in child templates.
+
+### Basic Template Inheritance
+
+Use `{% extends "base_template" %}` to inherit from a base template:
+
+```lua
+-- Base template (base.html)
+local base_template = Template([[
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}Default Title{% endblock %}</title>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <header>
+        <nav>{% block navigation %}{% endblock %}</nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        {% block footer %}© 2024 My Site{% endblock %}
+    </footer>
+</body>
+</html>
+]])
+
+-- Child template extending base
+local page_template = Template([[
+{% extends "base.html" %}
+
+{% block title %}My Page Title{% endblock %}
+
+{% block navigation %}
+<ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/about">About</a></li>
+</ul>
+{% endblock %}
+
+{% block content %}
+<h1>Welcome to My Page</h1>
+<p>This is the main content of the page.</p>
+{% endblock %}
+]])
+
+local result = page_template({})
+```
+
+Output:
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Page Title</title>
+
+</head>
+<body>
+    <header>
+        <nav>
+<ul>
+    <li><a href="/">Home</a></li>
+    <li><a href="/about">About</a></li>
+</ul>
+</nav>
+    </header>
+
+    <main>
+
+<h1>Welcome to My Page</h1>
+<p>This is the main content of the page.</p>
+
+    </main>
+
+    <footer>
+        © 2024 My Site
+    </footer>
+</body>
+</html>
+```
+
+### Block Directives
+
+#### `{% block name %}` - Define overridable sections
+
+Blocks define sections that can be overridden in child templates:
+
+```lua
+{% block header %}
+<h1>Default Header</h1>
+{% endblock %}
+```
+
+#### `{% block name %}...{% endblock %}` - Override parent blocks
+
+Child templates can override parent blocks with new content:
+
+```lua
+{% block header %}
+<h1>Custom Header for This Page</h1>
+{% endblock %}
+```
+
+### Block Inheritance Rules
+
+1. **Default Content**: If a child template doesn't override a block, the parent's content is used
+2. **Complete Replacement**: Child blocks completely replace parent blocks (no merging)
+3. **Nested Blocks**: Blocks can contain other template constructs (variables, components, control flow)
+4. **Multiple Blocks**: Templates can have multiple blocks with unique names
+
+### Advanced Block Usage
+
+#### Conditional Block Content
+
+Blocks can contain control flow and other template features:
+
+```lua
+{% block content %}
+{% if user.logged_in %}
+<h1>Welcome back, {{ user.name }}!</h1>
+{% else %}
+<h1>Welcome, Guest!</h1>
+{% endif %}
+
+{% for item in recent_items %}
+<div class="item">{{ item.title }}</div>
+{% endfor %}
+{% endblock %}
+```
+
+#### Component Integration
+
+Blocks work seamlessly with components:
+
+```lua
+-- Base template
+{% block sidebar %}
+<div class="sidebar">
+    <UserMenu user=current_user/>
+</div>
+{% endblock %}
+
+-- Child template
+{% block sidebar %}
+<div class="sidebar">
+    <UserMenu user=current_user/>
+    <AdBanner position="sidebar"/>
+</div>
+{% endblock %}
+```
+
+### Template Resolution
+
+Templates are resolved by name when using `{% extends %}`:
+
+1. **Named Templates**: Templates registered with `Template.register(name, template_string)`
+2. **File-based**: Future support for loading templates from files
+3. **Inline**: Templates can extend other inline templates
+
+```lua
+-- Register base template
+Template.register("base.html", [[
+<html>{% block content %}Default{% endblock %}</html>
+]])
+
+-- Extend registered template
+local child = Template([[
+{% extends "base.html" %}
+{% block content %}Custom content{% endblock %}
+]])
+```
+
+### Block Scope and Context
+
+Blocks inherit the full template context:
+
+```lua
+local template = Template([[
+{% extends "base.html" %}
+{% block content %}
+<p>User: {{ user.name }}</p>
+<p>Items: {{ #items }}</p>
+{% endblock %}
+]])
+
+template({
+    user = { name = "Alice" },
+    items = {1, 2, 3, 4, 5}
+})
+```
+
+### Error Handling
+
+Template inheritance provides clear error messages:
+
+- **Missing Parent**: `"Template 'missing.html' not found"`
+- **Circular Extends**: `"Circular template inheritance detected"`
+- **Unclosed Blocks**: `"Unclosed block 'content'"`
+- **Orphaned Endblock**: `"{% endblock %}` without matching block"
+
+```lua
+-- These will cause errors:
+Template('{% extends "nonexistent.html" %}')  -- Template not found
+Template('{% block content %}{% endblock %}{% block content %}')  -- Duplicate block names
+Template('{% block content %}')  -- Unclosed block
+Template('{% endblock %}')  -- Orphaned endblock
+```
+
+### Performance Notes
+
+- **Compile-time Resolution**: Template inheritance is resolved during compilation, not runtime
+- **Efficient Merging**: Child templates are merged with parent templates to generate optimized code
+- **No Runtime Overhead**: Final compiled templates have no inheritance overhead
+- **Caching**: Compiled templates can be cached for repeated use
+
+### Best Practices
+
+#### Block Naming Conventions
+
+- Use descriptive names: `content`, `sidebar`, `header`, `footer`
+- Use prefixes for complex layouts: `page_content`, `user_sidebar`
+- Keep block names consistent across related templates
+
+#### Content vs Layout
+
+- **Base templates**: Define overall page structure and common elements
+- **Child templates**: Focus on page-specific content and overrides
+- **Components**: Use for reusable UI elements within blocks
 
 ## Testing and Development
 

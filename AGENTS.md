@@ -157,6 +157,8 @@ history/
 
 **⚠️ CONSULT USER BETWEEN STEPS**: The user is the designer - get approval for documentation and tests before proceeding to implementation. This ensures alignment on design decisions.
 
+**🚨 STOP AND CONSULT USER**: Before proceeding to the next step, always ask for explicit approval. Never assume approval or continue automatically. This is critical for maintaining design alignment.
+
 ### User Documentation
 
 - **README.md**: High-level overview, installation instructions, quick start guide
