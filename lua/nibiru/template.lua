@@ -609,9 +609,9 @@ local function compile(template_str)
     -- If this is an inheritance template, merge with parent
     if parent_template_name then
         if processing_templates[parent_template_name] then
-            -- Circular dependency detected, handle gracefully
+            -- Circular dependency detected
             processing_templates[parent_template_name] = nil
-            -- Fall through to normal processing without inheritance
+            error("Circular template inheritance detected involving '" .. parent_template_name .. "'")
         end
 
         if not template_registry[parent_template_name] then
@@ -670,6 +670,21 @@ local function compile(template_str)
                                         if block_depth == 0 then
                                             break
                                         end
+                                    else
+                                        -- For non-block statements (if, for, etc.), include the entire statement
+                                        table.insert(content_tokens, {type = "STMT_START"})
+                                        table.insert(content_tokens, child_tokens[i])
+                                        i = i + 1
+                                        -- Collect the rest of the statement until STMT_END
+                                        while i <= #child_tokens and child_tokens[i].type ~= "STMT_END" do
+                                            table.insert(content_tokens, child_tokens[i])
+                                            i = i + 1
+                                        end
+                                        if i <= #child_tokens and child_tokens[i].type == "STMT_END" then
+                                            table.insert(content_tokens, child_tokens[i])
+                                            i = i + 1
+                                        end
+                                        goto continue
                                     end
                                 elseif child_tokens[i].type == "STMT_END" then
                                     i = i + 1
@@ -677,6 +692,7 @@ local function compile(template_str)
                                     table.insert(content_tokens, child_tokens[i])
                                     i = i + 1
                                 end
+                                ::continue::
                             end
 
                             child_blocks[block_name] = content_tokens
@@ -715,13 +731,40 @@ local function compile(template_str)
             pos = endblock_pos + #"{% endblock %}"
         end
 
-        -- Tokenize parent template and replace blocks at token level
-        local parent_tokens = Tokenizer.tokenize(template_registry[parent_template_name])
+        -- Get the parent template, processing any inheritance recursively
+        local parent_template_str = template_registry[parent_template_name]
+
+        -- Check if parent has extends and process recursively
+        local parent_final_str = parent_template_str
+        local parent_tokens_temp = Tokenizer.tokenize(parent_template_str)
+        for i, token in ipairs(parent_tokens_temp) do
+            if token.type == "EXTENDS" then
+                -- Parent has extends, compile it recursively
+                parent_final_str = compile(parent_template_str)
+                -- Execute with empty context to get the final string
+                parent_final_str = parent_final_str({})
+                break
+            end
+        end
+
+        local parent_tokens = Tokenizer.tokenize(parent_final_str)
         tokens = {}
 
         local i = 1
         while i <= #parent_tokens do
             local token = parent_tokens[i]
+            -- Skip extends statements in parent templates (circular dependency should be caught earlier)
+            if token.type == "STMT_START" then
+                local next_token_idx = i + 1
+                if next_token_idx <= #parent_tokens and parent_tokens[next_token_idx].type == "EXTENDS" then
+                    -- Skip the entire extends statement
+                    while i <= #parent_tokens and parent_tokens[i].type ~= "STMT_END" do
+                        i = i + 1
+                    end
+                    if i <= #parent_tokens then i = i + 1 end -- Skip STMT_END
+                    goto continue
+                end
+            end
             if token.type == "STMT_START" then
                 -- Check if previous token was whitespace that should be consumed
                 local prev_token_idx = i - 1
@@ -854,6 +897,7 @@ local function compile(template_str)
                 table.insert(tokens, token)
                 i = i + 1
             end
+            ::continue::
         end
 
         parser = { tokens = tokens, pos = 1 }
