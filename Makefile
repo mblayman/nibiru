@@ -4,6 +4,13 @@ CFLAGS += -I/usr/local/Cellar/lua/5.4.6/include/lua
 CFLAGS += -L/usr/local/Cellar/lua/5.4.6/lib
 CFLAGS += -llua
 
+lib:
+	cc \
+	$(CFLAGS) \
+	-shared -fPIC \
+	src/libnibiru.c \
+	-o lua/nibiru.so
+
 build:
 	cc \
 	$(CFLAGS) \
@@ -14,7 +21,7 @@ run: build
 	./nibiru docs.app:app
 
 clean:
-	rm -rf out nibiru
+	rm -rf out nibiru lua/nibiru.so
 
 deps:
 	luarocks --tree .luarocks install luatest
