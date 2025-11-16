@@ -3,8 +3,8 @@
 #include <lua.h>
 #include <string.h>
 
-// scandir function - returns table of {name, type} entries
-static int nibiru_scandir(lua_State *L) {
+// files_from function - returns array of filenames (files only)
+static int nibiru_files_from(lua_State *L) {
     const char *path = luaL_checkstring(L, 1);
 
     DIR *dir = opendir(path);
@@ -19,33 +19,18 @@ static int nibiru_scandir(lua_State *L) {
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        // Skip . and ..
+        // Skip . and .. and directories
         if (strcmp(entry->d_name, ".") == 0 ||
-            strcmp(entry->d_name, "..") == 0) {
+            strcmp(entry->d_name, "..") == 0 || entry->d_type == DT_DIR) {
             continue;
         }
 
-        lua_newtable(L); // Entry table
-
-        // name field
-        lua_pushstring(L, "name");
-        lua_pushstring(L, entry->d_name);
-        lua_settable(L, -3);
-
-        // type field (file or directory)
-        lua_pushstring(L, "type");
-        if (entry->d_type == DT_DIR) {
-            lua_pushstring(L, "directory");
-        } else if (entry->d_type == DT_REG) {
-            lua_pushstring(L, "file");
-        } else {
-            lua_pushstring(L, "other");
+        // Only include regular files
+        if (entry->d_type == DT_REG) {
+            lua_pushstring(L, entry->d_name);
+            lua_rawseti(L, -2, index);
+            index++;
         }
-        lua_settable(L, -3);
-
-        // Add to result table
-        lua_rawseti(L, -2, index);
-        index++;
     }
 
     closedir(dir);
@@ -53,7 +38,7 @@ static int nibiru_scandir(lua_State *L) {
 }
 
 // Library function table
-static const luaL_Reg nibiru_functions[] = {{"scandir", nibiru_scandir},
+static const luaL_Reg nibiru_functions[] = {{"files_from", nibiru_files_from},
                                             {NULL, NULL}};
 
 // Library open function
