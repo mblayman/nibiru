@@ -4,6 +4,8 @@
 #include <lua.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 // Helper function to collect files recursively
 static void collect_files_recursive(const char *base_path,
@@ -61,11 +63,27 @@ static void collect_files_recursive(const char *base_path,
 static int nibiru_files_from(lua_State *L) {
     const char *path = luaL_checkstring(L, 1);
 
+    // Check if path exists and is a directory
+    struct stat st;
+    if (stat(path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        lua_pushnil(L);
+        lua_pushstring(L, "Path does not exist or is not a directory");
+        return 2;
+    }
+
+    DIR *dir = opendir(path);
+    if (!dir) {
+        lua_pushnil(L);
+        lua_pushstring(L, "Failed to open directory");
+        return 2;
+    }
+
     lua_newtable(L); // Result table
     int index = 1;
 
     collect_files_recursive(path, "", L, &index);
 
+    closedir(dir);
     return 1;
 }
 

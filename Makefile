@@ -9,7 +9,7 @@ lib:
 	$(CFLAGS) \
 	-shared -fPIC \
 	src/libnibiru.c \
-	-o lua/nibiru.so
+	-o lua/nibiru_core.so
 
 build:
 	cc \
@@ -21,7 +21,7 @@ run: build
 	./nibiru docs.app:app
 
 clean:
-	rm -rf out nibiru lua/nibiru.so
+	rm -rf out nibiru lua/nibiru_core.so
 
 deps:
 	luarocks --tree .luarocks install luatest
