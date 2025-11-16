@@ -1,8 +1,13 @@
 local path = require("nibiru.path")
 
-local function test_files_from()
+local tests = {}
+
+function tests.test_files_from()
     -- Create a temporary directory with random name
-    local temp_dir = "/tmp/nibiru_test_" .. tostring(os.time()) .. "_" .. tostring(math.random(10000))
+    local temp_dir = "/tmp/nibiru_test_"
+        .. tostring(os.time())
+        .. "_"
+        .. tostring(math.random(10000))
     os.execute("mkdir -p " .. temp_dir .. "/subdir")
 
     -- Create test files
@@ -11,7 +16,7 @@ local function test_files_from()
         temp_dir .. "/file2.txt",
         temp_dir .. "/subdir/file3.txt",
         temp_dir .. "/subdir/file4.txt",
-        temp_dir .. "/deep/nested/file5.txt"
+        temp_dir .. "/deep/nested/file5.txt",
     }
 
     -- Create deep directory
@@ -39,7 +44,7 @@ local function test_files_from()
         "file2.txt",
         "subdir/file3.txt",
         "subdir/file4.txt",
-        "deep/nested/file5.txt"
+        "deep/nested/file5.txt",
     }
 
     for _, expected in ipairs(expected_files) do
@@ -47,15 +52,21 @@ local function test_files_from()
     end
 
     -- Check that we don't have extra files
-    assert(#files == #expected_files, "Wrong number of files: expected " .. #expected_files .. ", got " .. #files)
+    assert(
+        #files == #expected_files,
+        "Wrong number of files: expected " .. #expected_files .. ", got " .. #files
+    )
 
     -- Clean up
     os.execute("rm -rf " .. temp_dir)
 end
 
-local function test_files_from_empty_dir()
+function tests.test_files_from_empty_dir()
     -- Create empty temporary directory
-    local temp_dir = "/tmp/nibiru_test_empty_" .. tostring(os.time()) .. "_" .. tostring(math.random(10000))
+    local temp_dir = "/tmp/nibiru_test_empty_"
+        .. tostring(os.time())
+        .. "_"
+        .. tostring(math.random(10000))
     os.execute("mkdir -p " .. temp_dir)
 
     -- Test files_from on empty directory
@@ -66,17 +77,15 @@ local function test_files_from_empty_dir()
     os.execute("rm -rf " .. temp_dir)
 end
 
-local function test_files_from_nonexistent_dir()
+function tests.test_files_from_nonexistent_dir()
     -- Test with non-existent directory
     local files, err = path.files_from("/tmp/nonexistent_directory_12345")
     assert(files == nil, "Should return nil for non-existent directory")
-    assert(err:match("Path does not exist or is not a directory"), "Should give appropriate error message")
+    assert(
+        err:match("Path does not exist or is not a directory"),
+        "Should give appropriate error message"
+    )
 end
 
-local tests = {
-    test_files_from = test_files_from,
-    test_files_from_empty_dir = test_files_from_empty_dir,
-    test_files_from_nonexistent_dir = test_files_from_nonexistent_dir
-}
-
 return tests
+
