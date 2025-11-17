@@ -482,6 +482,62 @@ end
 --- Compile a template string into a renderable template object.
 ---@param template_str string Template string to compile
 ---@return table Template object with render function and code field
+local function process_child_tokens(child_tokens, child_blocks)
+    -- Process child tokens to expand blocks that are not overridden
+    local result = {}
+    local i = 1
+    while i <= #child_tokens do
+        local token = child_tokens[i]
+        if token.type == "BLOCK_START" and i + 1 <= #child_tokens and child_tokens[i + 1].type == "IDENTIFIER" then
+            local block_name = child_tokens[i + 1].value
+            -- Skip BLOCK_START and IDENTIFIER
+            i = i + 2
+            -- Skip STMT_END if present
+            if i <= #child_tokens and child_tokens[i].type == "STMT_END" then
+                i = i + 1
+            end
+            -- Collect content until BLOCK_END
+            local block_content = {}
+            while i <= #child_tokens and child_tokens[i].type ~= "BLOCK_END" do
+                table.insert(block_content, child_tokens[i])
+                i = i + 1
+            end
+            -- Skip BLOCK_END
+            if i <= #child_tokens then
+                i = i + 1
+            end
+            -- Skip STMT_END if present
+            if i <= #child_tokens and child_tokens[i].type == "STMT_END" then
+                i = i + 1
+            end
+            -- If this block is not overridden, expand it
+            if not child_blocks[block_name] then
+                -- Recursively process the block content and add to result
+                local processed_content = process_child_tokens(block_content, child_blocks)
+                for _, t in ipairs(processed_content) do
+                    table.insert(result, t)
+                end
+            else
+                -- This shouldn't happen in child content, but keep the block
+                table.insert(result, { type = "BLOCK_START" })
+                table.insert(result, { type = "IDENTIFIER", value = block_name })
+                for _, t in ipairs(block_content) do
+                    table.insert(result, t)
+                end
+                table.insert(result, { type = "BLOCK_END" })
+            end
+        else
+            table.insert(result, token)
+            i = i + 1
+        end
+    end
+    return result
+end
+
+local function insert_processed_child_token(tokens, token, child_blocks)
+    -- This function is not used anymore, replaced by process_child_tokens
+end
+
 local function compile(template_str)
     local tokens = Tokenizer.tokenize(template_str)
     local parser = { tokens = tokens, pos = 1 }
@@ -891,35 +947,36 @@ local function compile(template_str)
                                     end
                                 end
 
-                                -- Replace with child content tokens
-                                local child_tokens = child_blocks[block_name]
-                                if is_empty_block then
-                                    -- For empty parent blocks, trim all leading/trailing whitespace from child
-                                    local start_idx = 1
-                                    while
-                                        start_idx <= #child_tokens
-                                        and child_tokens[start_idx].type == "TEXT"
-                                        and child_tokens[start_idx].value:match("^%s*$")
-                                    do
-                                        start_idx = start_idx + 1
-                                    end
-                                    local end_idx = #child_tokens
-                                    while
-                                        end_idx >= start_idx
-                                        and child_tokens[end_idx].type == "TEXT"
-                                        and child_tokens[end_idx].value:match("^%s*$")
-                                    do
-                                        end_idx = end_idx - 1
-                                    end
-                                    for j = start_idx, end_idx do
-                                        table.insert(tokens, child_tokens[j])
-                                    end
-                                else
-                                    -- For non-empty parent blocks, preserve child formatting
-                                    for _, child_token in ipairs(child_tokens) do
-                                        table.insert(tokens, child_token)
-                                    end
-                                end
+                                 -- Replace with child content tokens
+                                 local child_tokens = child_blocks[block_name]
+                                 local processed_child_tokens = process_child_tokens(child_tokens, child_blocks)
+                                 if is_empty_block then
+                                     -- For empty parent blocks, trim all leading/trailing whitespace from processed child
+                                     local start_idx = 1
+                                     while
+                                         start_idx <= #processed_child_tokens
+                                         and processed_child_tokens[start_idx].type == "TEXT"
+                                         and processed_child_tokens[start_idx].value:match("^%s*$")
+                                     do
+                                         start_idx = start_idx + 1
+                                     end
+                                     local end_idx = #processed_child_tokens
+                                     while
+                                         end_idx >= start_idx
+                                         and processed_child_tokens[end_idx].type == "TEXT"
+                                         and processed_child_tokens[end_idx].value:match("^%s*$")
+                                     do
+                                         end_idx = end_idx - 1
+                                     end
+                                     for j = start_idx, end_idx do
+                                         table.insert(tokens, processed_child_tokens[j])
+                                     end
+                                 else
+                                     -- For non-empty parent blocks, preserve child formatting
+                                     for _, child_token in ipairs(processed_child_tokens) do
+                                         table.insert(tokens, child_token)
+                                     end
+                                 end
                                 -- Skip parent content until endblock
                                 local block_depth = 1
                                 while i <= #parent_tokens and block_depth > 0 do
