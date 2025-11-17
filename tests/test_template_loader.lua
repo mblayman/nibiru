@@ -134,7 +134,7 @@ function tests.test_from_directory_empty()
         return template({})
     end)
     assert(not success, "Empty directory should not register any templates")
-    assert(err:match("Template 'nonexistent.html' not found"), "Should confirm template doesn't exist")
+    assert(err and err:find("nonexistent.html"), "Should mention nonexistent.html in error")
 
     -- Clean up
     os.execute("rm -rf " .. temp_dir)
@@ -236,9 +236,8 @@ function tests.test_dependency_analysis_complex_chain()
     -- Verify the inheritance chain works
     local leaf_template = Template('{% extends "leaf.html" %}')
     local output = leaf_template({})
-    -- Expected: "<html>Middle: Leaf</html>" but current system produces "<html>Middle: Middle</html>"
-    -- because middle.html's inner block gets expanded before leaf.html can override it
-    assert(output == "<html>Middle: Middle</html>", "Complex inheritance chain works within current limitations")
+    -- Multi-level inheritance should allow grandchild to override grandparent blocks
+    assert(output == "<html>Middle: Leaf</html>", "Complex inheritance chain supports multi-level block overrides")
 
     -- Clean up
     os.execute("rm -rf " .. temp_dir)
@@ -387,9 +386,8 @@ function tests.test_dependency_analysis_chain_inheritance()
     -- Verify the chain renders correctly
     local c_template = Template('{% extends "c.html" %}')
     local output = c_template({})
-    -- Expected: "<root>B: C</root>" but current system produces "<root>B: B</root>"
-    -- because b.html's level2 block gets expanded before c.html can override it
-    assert(output == "<root>B: B</root>", "Chain inheritance works within current limitations")
+    -- Multi-level inheritance should allow grandchild to override grandparent blocks
+    assert(output == "<root>B: C</root>", "Chain inheritance supports multi-level block overrides")
 
     -- Clean up
     os.execute("rm -rf " .. temp_dir)

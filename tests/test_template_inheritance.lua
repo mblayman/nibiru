@@ -251,8 +251,10 @@ function tests.test_blocks_with_components()
     local result = child_template({})
     local expected = [[
 <div class="toolbar">
-    <button class="primary">Save</button>
+    
+<button class="primary">Save</button>
 <button class="secondary">Cancel</button>
+
 </div>
 <div class="content">
     
@@ -452,7 +454,7 @@ function tests.test_inheritance_merging_bug()
     <h1>Welcome</h1>
     
 <div class="middle">
-    Middle content
+    Leaf content
 </div>
 
 </body>

@@ -538,6 +538,236 @@ local function insert_processed_child_token(tokens, token, child_blocks)
     -- This function is not used anymore, replaced by process_child_tokens
 end
 
+--- Resolve complete inheritance chain and return final template string
+---@param template_name string Name of template to start resolution from
+---@param current_template_str string Optional current template content with additional blocks
+---@return string Final template string with all inheritance resolved
+local function resolve_inheritance_chain(template_name, current_template_str)
+    -- Build the complete inheritance chain (from root to leaf)
+    local chain = {}
+    local current = template_name
+
+    while current do
+        table.insert(chain, 1, current) -- Insert at beginning to get root-first
+        local template_str = template_registry[current]
+        if not template_str then
+            error("Template '" .. current .. "' not found")
+        end
+
+        -- Find extends statement
+        local extends_match = template_str:match('extends%s+"([^"]+)"')
+        current = extends_match
+    end
+
+    -- Collect all block definitions from the chain
+    local all_blocks = {} -- block_name -> {original = string, content = string}
+    local block_order = {} -- List of block names in processing order
+
+    for _, name in ipairs(chain) do
+        local template_str = template_registry[name]
+        -- Remove extends statement
+        local extends_end = template_str:find("%%}")
+        if extends_end and template_str:sub(1, extends_end + 1):find("extends") then
+            template_str = template_str:sub(extends_end + 2)
+        end
+
+        -- Parse blocks
+        local pos = 1
+        while pos <= #template_str do
+            local block_start = template_str:find("{% block ", pos, true)
+            if not block_start then break end
+
+            local name_start = block_start + #"{% block "
+            local name_end = template_str:find("%%}", name_start)
+            if not name_end then break end
+
+            local block_name = template_str:sub(name_start, name_end - 1):gsub("%s*$", "")
+            local content_start = name_end + 2
+
+            -- Find matching endblock by counting block nesting
+            local search_pos = content_start
+            local depth = 0
+            local endblock_pos = nil
+            while search_pos <= #template_str do
+                local next_block_start = template_str:find("{% block ", search_pos, true)
+                local next_endblock = template_str:find("{% endblock %}", search_pos, true)
+
+                if next_block_start and (not next_endblock or next_block_start < next_endblock) then
+                    depth = depth + 1
+                    search_pos = next_block_start + #"{% block "
+                elseif next_endblock then
+                    depth = depth - 1
+                    if depth < 0 then
+                        endblock_pos = next_endblock
+                        break
+                    end
+                    search_pos = next_endblock + #"{% endblock %}"
+                else
+                    break
+                end
+            end
+            if not endblock_pos then break end
+
+            local content = template_str:sub(content_start, endblock_pos - 1)
+            local original = template_str:sub(block_start, endblock_pos + #"{% endblock %}" - 1)
+            if not all_blocks[block_name] then
+                all_blocks[block_name] = {original = original, content = content}
+            else
+                -- Later templates override
+                all_blocks[block_name].content = content
+            end
+            -- Track block order (add if not already present)
+            local already_in_order = false
+            for _, existing in ipairs(block_order) do
+                if existing == block_name then
+                    already_in_order = true
+                    break
+                end
+            end
+            if not already_in_order then
+                table.insert(block_order, block_name)
+            end
+
+            pos = endblock_pos + #"{% endblock %}"
+        end
+    end
+
+    -- Also process blocks from current template if provided
+    if current_template_str then
+        -- Remove extends statement
+        local current_str = current_template_str
+        local extends_end = current_str:find("%%}")
+        if extends_end and current_str:sub(1, extends_end + 1):find("extends") then
+            current_str = current_str:sub(extends_end + 2)
+        end
+        local pos = 1
+        while pos <= #current_str do
+            local block_start = current_str:find("{% block ", pos, true)
+            if not block_start then break end
+
+            local name_start = block_start + #"{% block "
+            local name_end = current_str:find("%%}", name_start)
+            if not name_end then break end
+
+            local block_name = current_str:sub(name_start, name_end - 1):gsub("%s*$", "")
+            local content_start = name_end + 2
+
+            -- Find matching endblock
+            local search_pos = content_start
+            local depth = 0
+            local endblock_pos = nil
+            while search_pos <= #current_str do
+                local next_block_start = current_str:find("{% block ", search_pos, true)
+                local next_endblock = current_str:find("{% endblock %}", search_pos, true)
+
+                if next_block_start and (not next_endblock or next_block_start < next_endblock) then
+                    depth = depth + 1
+                    search_pos = next_block_start + #"{% block "
+                elseif next_endblock then
+                    depth = depth - 1
+                    if depth < 0 then
+                        endblock_pos = next_endblock
+                        break
+                    end
+                    search_pos = next_endblock + #"{% endblock %}"
+                else
+                    break
+                end
+            end
+            if not endblock_pos then break end
+
+            local content = current_str:sub(content_start, endblock_pos - 1)
+            local original = current_str:sub(block_start, endblock_pos + #"{% endblock %}" - 1)
+            all_blocks[block_name] = {original = original, content = content} -- Current template blocks override all others
+            -- Track block order
+            local already_in_order = false
+            for _, existing in ipairs(block_order) do
+                if existing == block_name then
+                    already_in_order = true
+                    break
+                end
+            end
+            if not already_in_order then
+                table.insert(block_order, block_name)
+            end
+
+            pos = endblock_pos + #"{% endblock %}"
+        end
+    end
+
+    -- Start with the root template and replace all blocks
+    local result = template_registry[chain[1]]:gsub("^{%s*extends%s+\"[^\"]+\"%s*%}", "")
+
+    -- Function to recursively replace block tags with their content
+    local function process_blocks(content)
+        local result_content = content
+        local pos = 1
+        while pos <= #result_content do
+            local block_start = result_content:find("{% block ", pos, true)
+            if not block_start then break end
+
+            local name_start = block_start + #"{% block "
+            local name_end = result_content:find("%}", name_start)
+            if not name_end then break end
+
+            local block_name = result_content:sub(name_start, name_end - 2):gsub("%s*$", "")
+            local content_start = name_end + 1
+
+            -- Find matching endblock
+            local search_pos = content_start
+            local depth = 0
+            local endblock_pos = nil
+            while search_pos <= #result_content do
+                local next_block_start = result_content:find("{% block ", search_pos, true)
+                local next_endblock = result_content:find("{% endblock %}", search_pos, true)
+
+                if next_block_start and (not next_endblock or next_block_start < next_endblock) then
+                    depth = depth + 1
+                    search_pos = next_block_start + #"{% block "
+                elseif next_endblock then
+                    depth = depth - 1
+                    if depth < 0 then
+                        endblock_pos = next_endblock
+                        break
+                    end
+                    search_pos = next_endblock + #"{% endblock %}"
+                else
+                    break
+                end
+            end
+            if not endblock_pos then break end
+
+            -- Get the block content
+            local block_content = result_content:sub(content_start, endblock_pos - 1)
+
+            -- Replace with the defined content for this block, or recursively process if no override
+            local replacement
+            if all_blocks[block_name] then
+                replacement = all_blocks[block_name].content
+                -- Recursively process nested blocks in the replacement
+                replacement = process_blocks(replacement)
+            else
+                -- No override, recursively process the existing content
+                replacement = process_blocks(block_content)
+            end
+
+            -- Replace the block
+            local before = result_content:sub(1, block_start - 1)
+            local after = result_content:sub(endblock_pos + #"{% endblock %}")
+            result_content = before .. replacement .. after
+
+            -- Continue from the end of the replacement
+            pos = block_start + #replacement
+        end
+        return result_content
+    end
+
+    -- Process all blocks in the root template
+    result = process_blocks(result)
+
+    return result
+end
+
 local function compile(template_str)
     local tokens = Tokenizer.tokenize(template_str)
     local parser = { tokens = tokens, pos = 1 }
@@ -675,7 +905,7 @@ local function compile(template_str)
         end
     end
 
-    -- If this is an inheritance template, merge with parent
+    -- If this is an inheritance template, resolve complete inheritance chain
     if parent_template_name then
         if processing_templates[parent_template_name] then
             -- Circular dependency detected
@@ -687,382 +917,11 @@ local function compile(template_str)
             )
         end
 
-        if not template_registry[parent_template_name] then
-            error("Template '" .. parent_template_name .. "' not found")
-        end
-
         processing_templates[parent_template_name] = true
 
-        -- Extract child blocks as token arrays
-        local child_blocks = {} -- block_name -> {tokens}
-        local child_tokens = Tokenizer.tokenize(template_str)
-
-        -- Skip to after extends
-        local i = 1
-        while i <= #child_tokens do
-            if child_tokens[i].type == "STMT_START" then
-                i = i + 1
-                if i <= #child_tokens and child_tokens[i].type == "EXTENDS" then
-                    -- Skip extends statement
-                    while i <= #child_tokens and child_tokens[i].type ~= "STMT_END" do
-                        i = i + 1
-                    end
-                    if i <= #child_tokens then
-                        i = i + 1
-                    end
-                    break
-                end
-            elseif
-                child_tokens[i].type == "TEXT" and child_tokens[i].value:match("^%s*$")
-            then
-                i = i + 1
-            else
-                break
-            end
-        end
-
-        -- Parse blocks
-        while i <= #child_tokens do
-            if child_tokens[i].type == "STMT_START" then
-                i = i + 1
-                if i <= #child_tokens and child_tokens[i].type == "BLOCK_START" then
-                    i = i + 1
-                    if i <= #child_tokens and child_tokens[i].type == "IDENTIFIER" then
-                        local block_name = child_tokens[i].value
-                        i = i + 1
-
-                        if
-                            i <= #child_tokens
-                            and child_tokens[i].type == "STMT_END"
-                        then
-                            i = i + 1
-
-                            -- Collect block content tokens
-                            local content_tokens = {}
-                            local block_depth = 1
-                            while i <= #child_tokens and block_depth > 0 do
-                                if child_tokens[i].type == "STMT_START" then
-                                    i = i + 1
-                                    if
-                                        i <= #child_tokens
-                                        and child_tokens[i].type == "BLOCK_START"
-                                    then
-                                        block_depth = block_depth + 1
-                                    elseif
-                                        i <= #child_tokens
-                                        and child_tokens[i].type == "BLOCK_END"
-                                    then
-                                        block_depth = block_depth - 1
-                                        if block_depth == 0 then
-                                            break
-                                        end
-                                    else
-                                        -- For non-block statements (if, for, etc.), include the entire statement
-                                        table.insert(
-                                            content_tokens,
-                                            { type = "STMT_START" }
-                                        )
-                                        table.insert(content_tokens, child_tokens[i])
-                                        i = i + 1
-                                        -- Collect the rest of the statement until STMT_END
-                                        while
-                                            i <= #child_tokens
-                                            and child_tokens[i].type ~= "STMT_END"
-                                        do
-                                            table.insert(
-                                                content_tokens,
-                                                child_tokens[i]
-                                            )
-                                            i = i + 1
-                                        end
-                                        if
-                                            i <= #child_tokens
-                                            and child_tokens[i].type == "STMT_END"
-                                        then
-                                            table.insert(
-                                                content_tokens,
-                                                child_tokens[i]
-                                            )
-                                            i = i + 1
-                                        end
-                                        goto continue
-                                    end
-                                elseif child_tokens[i].type == "STMT_END" then
-                                    i = i + 1
-                                else
-                                    table.insert(content_tokens, child_tokens[i])
-                                    i = i + 1
-                                end
-                                ::continue::
-                            end
-
-                            child_blocks[block_name] = content_tokens
-                        end
-                    end
-                end
-            else
-                i = i + 1
-            end
-        end
-
-        -- Parse all blocks in the template
-        local pos = 1
-        while pos <= #template_str do
-            -- Find next block start
-            local block_start_pos = template_str:find("{% block ", pos)
-            if not block_start_pos then
-                break
-            end
-
-            -- Extract block name
-            local name_start = block_start_pos + #"{% block "
-            local name_end = template_str:find(" %}", name_start)
-            if not name_end then
-                break
-            end
-
-            local block_name = template_str:sub(name_start, name_end - 1)
-
-            -- Find block content start and end
-            local content_start = name_end + #" %}"
-            local endblock_pos = template_str:find("{% endblock %}", content_start)
-            if not endblock_pos then
-                break
-            end
-
-            local content = template_str:sub(content_start, endblock_pos - 1)
-            -- Trim whitespace but preserve internal formatting
-            content = content:gsub("^%s*(.-)%s*$", "%1")
-
-            child_blocks[block_name] = content
-            pos = endblock_pos + #"{% endblock %}"
-        end
-
-        -- Get the parent template, processing any inheritance recursively
-        local parent_template_str = template_registry[parent_template_name]
-
-        -- Check if parent has extends and process recursively
-        local parent_final_str = parent_template_str
-        local parent_tokens_temp = Tokenizer.tokenize(parent_template_str)
-        for i, token in ipairs(parent_tokens_temp) do
-            if token.type == "EXTENDS" then
-                -- Parent has extends, compile it recursively
-                parent_final_str = compile(parent_template_str)
-                -- Execute with empty context to get the final string
-                parent_final_str = parent_final_str({})
-                break
-            end
-        end
-
-        local parent_tokens = Tokenizer.tokenize(parent_final_str)
-        tokens = {}
-
-        local i = 1
-        while i <= #parent_tokens do
-            local token = parent_tokens[i]
-            -- Skip extends statements in parent templates (circular dependency should be caught earlier)
-            if token.type == "STMT_START" then
-                local next_token_idx = i + 1
-                if
-                    next_token_idx <= #parent_tokens
-                    and parent_tokens[next_token_idx].type == "EXTENDS"
-                then
-                    -- Skip the entire extends statement
-                    while i <= #parent_tokens and parent_tokens[i].type ~= "STMT_END" do
-                        i = i + 1
-                    end
-                    if i <= #parent_tokens then
-                        i = i + 1
-                    end -- Skip STMT_END
-                    goto continue
-                end
-            end
-            if token.type == "STMT_START" then
-                -- Check if previous token was whitespace that should be consumed
-                local prev_token_idx = i - 1
-                local consumed_whitespace = false
-                if
-                    prev_token_idx >= 1
-                    and parent_tokens[prev_token_idx].type == "TEXT"
-                    and parent_tokens[prev_token_idx].value:match("^%s*$")
-                then
-                    -- Remove the whitespace token
-                    table.remove(tokens, #tokens)
-                    consumed_whitespace = true
-                end
-
-                i = i + 1
-                if i <= #parent_tokens and parent_tokens[i].type == "BLOCK_START" then
-                    i = i + 1
-                    if
-                        i <= #parent_tokens
-                        and parent_tokens[i].type == "IDENTIFIER"
-                    then
-                        local block_name = parent_tokens[i].value
-                        i = i + 1
-
-                        if
-                            i <= #parent_tokens
-                            and parent_tokens[i].type == "STMT_END"
-                        then
-                            i = i + 1
-
-                            -- Check if child overrides this block
-                            if child_blocks[block_name] then
-                                -- Check if parent block is empty (no content between block tags)
-                                local parent_block_start = i
-                                local is_empty_block = true
-                                local temp_depth = 1
-                                local temp_i = i
-                                while temp_i <= #parent_tokens and temp_depth > 0 do
-                                    local temp_token = parent_tokens[temp_i]
-                                    if temp_token.type == "STMT_START" then
-                                        temp_i = temp_i + 1
-                                        if
-                                            temp_i <= #parent_tokens
-                                            and parent_tokens[temp_i].type
-                                                == "BLOCK_START"
-                                        then
-                                            temp_depth = temp_depth + 1
-                                        elseif
-                                            temp_i <= #parent_tokens
-                                            and parent_tokens[temp_i].type
-                                                == "BLOCK_END"
-                                        then
-                                            temp_depth = temp_depth - 1
-                                            if temp_depth == 0 then
-                                                break
-                                            end
-                                        end
-                                    elseif temp_token.type == "STMT_END" then
-                                        temp_i = temp_i + 1
-                                    else
-                                        if
-                                            temp_token.type ~= "TEXT"
-                                            or not temp_token.value:match("^%s*$")
-                                        then
-                                            is_empty_block = false
-                                        end
-                                        temp_i = temp_i + 1
-                                    end
-                                end
-
-                                 -- Replace with child content tokens
-                                 local child_tokens = child_blocks[block_name]
-                                 local processed_child_tokens = process_child_tokens(child_tokens, child_blocks)
-                                 if is_empty_block then
-                                     -- For empty parent blocks, trim all leading/trailing whitespace from processed child
-                                     local start_idx = 1
-                                     while
-                                         start_idx <= #processed_child_tokens
-                                         and processed_child_tokens[start_idx].type == "TEXT"
-                                         and processed_child_tokens[start_idx].value:match("^%s*$")
-                                     do
-                                         start_idx = start_idx + 1
-                                     end
-                                     local end_idx = #processed_child_tokens
-                                     while
-                                         end_idx >= start_idx
-                                         and processed_child_tokens[end_idx].type == "TEXT"
-                                         and processed_child_tokens[end_idx].value:match("^%s*$")
-                                     do
-                                         end_idx = end_idx - 1
-                                     end
-                                     for j = start_idx, end_idx do
-                                         table.insert(tokens, processed_child_tokens[j])
-                                     end
-                                 else
-                                     -- For non-empty parent blocks, preserve child formatting
-                                     for _, child_token in ipairs(processed_child_tokens) do
-                                         table.insert(tokens, child_token)
-                                     end
-                                 end
-                                -- Skip parent content until endblock
-                                local block_depth = 1
-                                while i <= #parent_tokens and block_depth > 0 do
-                                    local block_token = parent_tokens[i]
-                                    if block_token.type == "STMT_START" then
-                                        i = i + 1
-                                        if
-                                            i <= #parent_tokens
-                                            and parent_tokens[i].type
-                                                == "BLOCK_START"
-                                        then
-                                            block_depth = block_depth + 1
-                                        elseif
-                                            i <= #parent_tokens
-                                            and parent_tokens[i].type == "BLOCK_END"
-                                        then
-                                            block_depth = block_depth - 1
-                                            if block_depth == 0 then
-                                                i = i + 1 -- Skip BLOCK_END
-                                                if
-                                                    i <= #parent_tokens
-                                                    and parent_tokens[i].type
-                                                        == "STMT_END"
-                                                then
-                                                    i = i + 1 -- Skip STMT_END
-                                                end
-                                                break
-                                            end
-                                        end
-                                    elseif block_token.type == "STMT_END" then
-                                        i = i + 1
-                                    else
-                                        -- Skip parent content
-                                        i = i + 1
-                                    end
-                                end
-                            else
-                                -- Keep parent content until endblock
-                                local block_depth = 1
-                                while i <= #parent_tokens and block_depth > 0 do
-                                    local block_token = parent_tokens[i]
-                                    if block_token.type == "STMT_START" then
-                                        i = i + 1
-                                        if
-                                            i <= #parent_tokens
-                                            and parent_tokens[i].type
-                                                == "BLOCK_START"
-                                        then
-                                            block_depth = block_depth + 1
-                                        elseif
-                                            i <= #parent_tokens
-                                            and parent_tokens[i].type == "BLOCK_END"
-                                        then
-                                            block_depth = block_depth - 1
-                                            if block_depth == 0 then
-                                                i = i + 1 -- Skip BLOCK_END
-                                                if
-                                                    i <= #parent_tokens
-                                                    and parent_tokens[i].type
-                                                        == "STMT_END"
-                                                then
-                                                    i = i + 1 -- Skip STMT_END
-                                                end
-                                                break
-                                            end
-                                        end
-                                    elseif block_token.type == "STMT_END" then
-                                        i = i + 1
-                                    else
-                                        table.insert(tokens, block_token)
-                                        i = i + 1
-                                    end
-                                end
-                            end
-                        end
-                    end
-                else
-                    -- Not a block, add back STMT_START
-                    table.insert(tokens, { type = "STMT_START" })
-                end
-            else
-                table.insert(tokens, token)
-                i = i + 1
-            end
-            ::continue::
-        end
+        -- Resolve the complete inheritance chain
+        local resolved_str = resolve_inheritance_chain(parent_template_name, template_str)
+        tokens = Tokenizer.tokenize(resolved_str)
 
         parser = { tokens = tokens, pos = 1 }
 
