@@ -8,6 +8,11 @@ function Config.load(config_path)
 
     local chunk, err = loadfile(config_path)
     if not chunk then
+        -- If config file doesn't exist, return defaults
+        if err:match("No such file or directory") then
+            return Config.defaults()
+        end
+        -- For other loadfile errors (syntax errors, etc.), still throw
         error("Failed to load config file '" .. config_path .. "': " .. err)
     end
 
