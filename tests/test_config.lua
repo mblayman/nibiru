@@ -68,12 +68,12 @@ function tests.test_load_invalid_lua_syntax()
     file:close()
 
     -- Loading should fail gracefully
-    local success, config = pcall(function()
+    local success, err = pcall(function()
         return Config.load(temp_file)
     end)
 
     assert.is_false(success, "Loading invalid config should fail")
-    assert.is_nil(config)
+    assert.is_string(err)
 
     -- Clean up
     os.remove(temp_file)
@@ -93,12 +93,12 @@ function tests.test_load_non_table_return()
     file:close()
 
     -- Loading should fail gracefully
-    local success, config = pcall(function()
+    local success, err = pcall(function()
         return Config.load(temp_file)
     end)
 
     assert.is_false(success, "Loading non-table config should fail")
-    assert.is_nil(config)
+    assert.is_string(err)
 
     -- Clean up
     os.remove(temp_file)
@@ -158,12 +158,12 @@ return {
     file:close()
 
     -- Loading should fail due to validation
-    local success, config = pcall(function()
+    local success, err = pcall(function()
         return Config.load(temp_file)
     end)
 
     assert.is_false(success, "Config with empty directory should fail validation")
-    assert.is_nil(config)
+    assert.is_string(err)
 
     -- Clean up
     os.remove(temp_file)
@@ -172,11 +172,7 @@ end
 -- Test loading config with partial settings (should merge with defaults)
 function tests.test_load_partial_config()
     -- Create a config file with only some settings
-    local temp_file = "/tmp/test_config_partial_"
-        .. tostring(os.time())
-        .. "_"
-        .. tostring(math.random(10000))
-        .. ".lua"
+    local temp_file = "/tmp/test_config_partial_" .. tostring(os.time()) .. "_" .. tostring(math.random(10000)) .. ".lua"
     local file = io.open(temp_file, "w")
     assert(file, "Failed to create temp file")
     file:write([[
@@ -219,12 +215,12 @@ return {
     file:close()
 
     -- Loading should fail due to unknown settings
-    local success, config = pcall(function()
+    local success, err = pcall(function()
         return Config.load(temp_file)
     end)
 
     assert.is_false(success, "Config with unknown settings should fail")
-    assert.is_nil(config)
+    assert.is_string(err)
 
     -- Clean up
     os.remove(temp_file)
