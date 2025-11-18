@@ -31,9 +31,25 @@ end
 -- @param config table: The configuration table to validate
 -- @param config_path string: Path to the config file (for error messages)
 function Config.validate(config, config_path)
+    -- Check for unknown top-level keys
+    local allowed_top_keys = { templates = true }
+    for key, _ in pairs(config) do
+        if not allowed_top_keys[key] then
+            error("Config file '" .. config_path .. "' contains unknown setting '" .. key .. "'")
+        end
+    end
+
     -- Validate templates section
     if not config.templates or type(config.templates) ~= "table" then
         error("Config file '" .. config_path .. "' must have a 'templates' table")
+    end
+
+    -- Check for unknown keys in templates section
+    local allowed_template_keys = { directory = true }
+    for key, _ in pairs(config.templates) do
+        if not allowed_template_keys[key] then
+            error("Config file '" .. config_path .. "' contains unknown templates setting '" .. key .. "'")
+        end
     end
 
     -- Validate templates.directory is a non-empty string
