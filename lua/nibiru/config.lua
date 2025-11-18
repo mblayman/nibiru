@@ -36,9 +36,9 @@ function Config.validate(config, config_path)
         error("Config file '" .. config_path .. "' must have a 'templates' table")
     end
 
-    -- Validate templates.directory is a string
-    if not config.templates.directory or type(config.templates.directory) ~= "string" then
-        error("Config file '" .. config_path .. "' templates.directory must be a string")
+    -- Validate templates.directory is a non-empty string
+    if not config.templates.directory or type(config.templates.directory) ~= "string" or config.templates.directory == "" then
+        error("Config file '" .. config_path .. "' templates.directory must be a non-empty string")
     end
 end
 
