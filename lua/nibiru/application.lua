@@ -16,14 +16,25 @@ Application.__index = Application
 --- Create an app instance that serves as the WSGI callable.
 --- @param _ any
 --- @param routes Route[]? Routes to add to the application
---- @param config_path string? Optional path to config file (for testing)
+--- @param config_path string? Optional path to config file
 --- @return Application
 local function _init(_, routes, config_path)
     local self = setmetatable({}, Application)
     self.routes = routes or {}
 
-    -- Load configuration automatically from ./config.lua (with fallback to defaults)
-    -- Allow overriding config path for testing
+    -- Determine config path if not provided
+    if not config_path then
+        -- Read from boot parameters to determine config location
+        local boot_params = require("nibiru.boot_parameters")
+        if boot_params.app_module then
+            -- Convert module name to config path
+            -- e.g., "docs.app" -> "docs/config.lua"
+            config_path = boot_params.app_module:gsub("%.", "/") .. ".lua"
+            config_path = config_path:gsub("/[^/]+$", "/config.lua")
+        end
+    end
+
+    -- Load configuration from the determined path
     self.config = Config.load(config_path)
 
     -- Initialize template loader using configured directory

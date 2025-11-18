@@ -34,15 +34,15 @@ return {
     os.remove(temp_file)
 end
 
--- Test loading config with defaults when file doesn't exist
-function tests.test_load_defaults_when_no_file()
+-- Test that loading config fails when file doesn't exist
+function tests.test_load_fails_when_no_file()
     -- Try to load from a nonexistent file
-    local config = Config.load("/tmp/nonexistent_config.lua")
+    local success, err = pcall(Config.load, "/tmp/nonexistent_config.lua")
 
-    -- Should return defaults
-    assert.is_table(config)
-    assert.is_table(config.templates)
-    assert.equal("templates", config.templates.directory)
+    -- Should fail with error
+    assert.is_false(success)
+    assert.match("Failed to load config file", err)
+    assert.match("No such file or directory", err)
 end
 
 -- Test Config.defaults() function
