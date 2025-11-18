@@ -9,6 +9,7 @@ local tests = {}
 
 -- Basic template inheritance with block override
 function tests.test_basic_inheritance()
+    Template.clear_templates()
     -- Register a base template
     Template.register(
         "base.html",

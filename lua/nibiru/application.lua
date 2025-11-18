@@ -1,21 +1,33 @@
 local http = require("nibiru.http")
 local Route = require("nibiru.route")
+local Config = require("nibiru.config")
+local TemplateLoader = require("nibiru.loader")
 
 local not_found = http.not_found()
 local method_not_allowed = http.method_not_allowed()
 
 --- @class Application
 --- @field routes Route[]
+--- @field config table Configuration loaded from config.lua
 --- @field app Application An alias for the application
 local Application = {}
 Application.__index = Application
 
 --- Create an app instance that serves as the WSGI callable.
 --- @param _ any
+--- @param routes Route[]? Routes to add to the application
+--- @param config_path string? Optional path to config file (for testing)
 --- @return Application
-local function _init(_, routes)
+local function _init(_, routes, config_path)
     local self = setmetatable({}, Application)
     self.routes = routes or {}
+
+    -- Load configuration automatically from ./config.lua (with fallback to defaults)
+    -- Allow overriding config path for testing
+    self.config = Config.load(config_path)
+
+    -- Initialize template loader using configured directory
+    TemplateLoader.from_directory(self.config.templates.directory)
 
     -- By keeping a reference to itself as `app`, a real project can simplify
     -- how it provides the nibiru server with the application instance.
