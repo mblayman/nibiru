@@ -124,15 +124,12 @@ return {
     file:close()
 
     -- Loading should fail due to validation
-    local success, config = pcall(function()
+    local success, err = pcall(function()
         return Config.load(temp_file)
     end)
 
-    assert.is_false(
-        success,
-        "Config with invalid directory type should fail validation"
-    )
-    assert.is_nil(config)
+    assert.is_false(success, "Config with invalid directory type should fail validation")
+    assert.is_string(err)
 
     -- Clean up
     os.remove(temp_file)
@@ -162,7 +159,7 @@ return {
         return Config.load(temp_file)
     end)
 
-    assert.is_false(success, "Config with empty directory should fail validation")
+    assert.is_false(success, "Config with invalid directory type should fail validation")
     assert.is_string(err)
 
     -- Clean up

@@ -21,7 +21,25 @@ function Config.load(config_path)
         error("Config file '" .. config_path .. "' must return a table")
     end
 
+    -- Validate configuration structure
+    Config.validate(config, config_path)
+
     return config
+end
+
+--- Validate configuration structure
+-- @param config table: The configuration table to validate
+-- @param config_path string: Path to the config file (for error messages)
+function Config.validate(config, config_path)
+    -- Validate templates section
+    if not config.templates or type(config.templates) ~= "table" then
+        error("Config file '" .. config_path .. "' must have a 'templates' table")
+    end
+
+    -- Validate templates.directory is a string
+    if not config.templates.directory or type(config.templates.directory) ~= "string" then
+        error("Config file '" .. config_path .. "' templates.directory must be a string")
+    end
 end
 
 --- Return the default configuration structure
