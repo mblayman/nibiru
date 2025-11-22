@@ -47,3 +47,17 @@ These are the resources that I haven't read much of yet:
 - Apparently, http://lua.sqlite.org/index.cgi/home is a thing.
 - https://redbean.dev/ is in the same space. Lots of interesting ideas here like TLS, gzip, SQLite
 - What lesson can I learn from Gunicorn? What is the architecture?
+
+## Making releases
+
+These are notes to help me remember how to cut a release for LuaRocks.
+
+```
+luarocks new_version nibiru-dev-1.rockspec <new version like 0.2>
+# Upload expects branch name of v0.1 format
+git tag -a v0.2 -m 0.2
+# The upload command will build a source rock locally.
+# Example
+luarocks upload rockspecs/nibiru-0.1-1.rockspec --api-key=$LUAROCKS_KEY
+```
+
