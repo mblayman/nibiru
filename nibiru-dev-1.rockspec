@@ -14,22 +14,34 @@ description = {
 dependencies = { "lua >= 5.1" }
 
 build = {
-    type = "make",
-    makefile = "Makefile.luarocks",
+    type = "command",
 
-    build_target = "all",
+    build_command = [[
+        # Build C library
+        mkdir -p lua
+        $(CC) $(CFLAGS) -fPIC -shared -o lua/nibiru_core.so src/libnibiru.c $(LIBFLAG)
 
-    build_variables = {
-        CFLAGS = "$(CFLAGS)",
-    },
+        # Build binary as executable (not shared library) - don't use LIBFLAG
+        $(CC) $(CFLAGS) -o nibiru src/main.c -llua
+    ]],
 
-    modules = {
-        ["nibiru_core"] = "lua/nibiru_core.so",
-    },
-    install = {
-        bin = {
-            nibiru = "nibiru",
-        },
-    },
-    copy_directories = { "lua/nibiru", "docs" },
+    install_command = [[
+        # Install C library
+        mkdir -p $(LIBDIR)
+        cp lua/nibiru_core.so $(LIBDIR)/nibiru_core.so
+
+        # Install binary
+        mkdir -p $(BINDIR)
+        cp nibiru $(BINDIR)/nibiru
+
+        # Install Lua modules
+        mkdir -p $(LUADIR)/nibiru
+        cp -r lua/nibiru/* $(LUADIR)/nibiru/
+
+        # Install docs
+        mkdir -p $(DOCDIR)
+        cp -r docs/* $(DOCDIR)/ 2>/dev/null || true
+    ]],
+
+    copy_directories = { "docs" },
 }
