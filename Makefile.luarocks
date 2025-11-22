@@ -1,22 +1,13 @@
-.PHONY: build install clean
+.PHONY: all clean
 
-build: lua/nibiru_core.so nibiru
+all: lua/nibiru_core.so nibiru
 
 lua/nibiru_core.so: src/libnibiru.c
 	mkdir -p lua
-	$(CC) $(CFLAGS) -I$(LUA_INCDIR) $(LIBFLAG) -o $@ $< $(LIBS)
+	$(CC) $(CFLAGS) -fPIC -shared -o $@ $< -llua
 
 nibiru: src/main.c
-	$(CC) $(CFLAGS) -I$(LUA_INCDIR) -o $@ $< $(LIBS)
-
-install: build
-	mkdir -p $(LUA_LIBDIR)
-	cp lua/nibiru_core.so $(LUA_LIBDIR)/
-	mkdir -p $(BINDIR)
-	cp nibiru $(BINDIR)/
-	# Copy Lua source files
-	mkdir -p $(LUA_LIBDIR)/nibiru
-	cp -r lua/nibiru/* $(LUA_LIBDIR)/nibiru/
+	$(CC) $(CFLAGS) -o $@ $< -llua
 
 clean:
 	rm -f lua/nibiru_core.so nibiru

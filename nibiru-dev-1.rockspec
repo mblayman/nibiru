@@ -11,25 +11,25 @@ description = {
     license = "MIT",
 }
 
-dependencies = {
-    "lua >= 5.1",
-}
+dependencies = { "lua >= 5.1" }
 
 build = {
-    type = "builtin",
+    type = "make",
+    makefile = "Makefile.luarocks",
 
-    build_command = "make -f Makefile.luarocks build "
-        .. "LUA_INCDIR=${LUA_INCDIR} "
-        .. "LIBFLAG=${LIBFLAG} LIBS=${LIBS}",
+    build_target = "all",
 
-    copy = {
-        ["lua/nibiru_core.so"] = "lua/nibiru_core.so",
-        ["nibiru"] = "nibiru",
+    build_variables = {
+        CFLAGS = "$(CFLAGS)",
     },
 
+    modules = {
+        ["nibiru_core"] = "lua/nibiru_core.so",
+    },
     install = {
-        bin = { nibiru = "nibiru" },
+        bin = {
+            nibiru = "nibiru",
+        },
     },
-
     copy_directories = { "lua/nibiru", "docs" },
 }
