@@ -29,6 +29,7 @@ build = {
 
     copy = {
         ["lua/nibiru_core.so"] = "lua/nibiru_core.so",
+        ["nibiru"] = "nibiru",
     },
 
     install = {
