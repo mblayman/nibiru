@@ -21,7 +21,7 @@ run: build
 	./nibiru docs.app:app
 
 clean:
-	rm -rf out nibiru lua/nibiru_core.so
+	rm -rf out nibiru lua/nibiru_core.so rocks
 
 deps:
 	luarocks --tree .luarocks install luatest
@@ -35,3 +35,7 @@ req:
 docs: clean
 	mkdir out
 	~/.local/share/nvim/mason/bin/lua-language-server --doc lua/nibiru --doc_out_path out
+
+test-packaging: clean
+	luarocks make --tree ./rocks
+	tree rocks
