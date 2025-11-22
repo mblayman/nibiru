@@ -18,20 +18,17 @@ dependencies = {
 build = {
     type = "builtin",
 
-    build = {
-        type = "make",
-        makefile = "Makefile.luarocks",
-        build_variables = {
-            CFLAGS = "$(CFLAGS) -I$(LUA_INCDIR)",
-            LIBFLAG = "$(LIBFLAG)",
-            LIBS = "$(LIBS)",
-        },
+    build_command = "make -f Makefile.luarocks build "
+        .. "LUA_INCDIR=${LUA_INCDIR} "
+        .. "LIBFLAG=${LIBFLAG} LIBS=${LIBS}",
+
+    copy = {
+        ["lua/nibiru_core.so"] = "lua/nibiru_core.so",
+        ["nibiru"] = "nibiru",
     },
 
     install = {
-        bin = {
-            nibiru = "nibiru",
-        },
+        bin = { nibiru = "nibiru" },
     },
 
     copy_directories = { "lua/nibiru", "docs" },
