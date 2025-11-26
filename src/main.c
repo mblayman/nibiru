@@ -188,25 +188,28 @@ void setup_rocks_paths() {
     char new_lua_cpath[4096];
 
     // LUA_PATH: Add share/lua/5.x/?.lua and share/lua/5.x/?/init.lua
+    // Include ;; at the end to append default paths (including current
+    // directory)
     if (current_lua_path) {
         snprintf(new_lua_path, sizeof(new_lua_path),
-                 "%s/?.lua;%s/?/init.lua;%s", share_path, share_path,
+                 "%s/?.lua;%s/?/init.lua;%s;;", share_path, share_path,
                  current_lua_path);
     } else {
-        snprintf(new_lua_path, sizeof(new_lua_path), "%s/?.lua;%s/?/init.lua",
+        snprintf(new_lua_path, sizeof(new_lua_path), "%s/?.lua;%s/?/init.lua;;",
                  share_path, share_path);
     }
 
     // LUA_CPATH: Add lib/lua/5.x/?.so
+    // Include ;; at the end to append default paths
     char lib_dir[PATH_MAX];
     snprintf(lib_dir, sizeof(lib_dir), "%s/../lib/lua/%s", exe_dir,
              "5.4"); // Use the version we found
 
     if (current_lua_cpath) {
-        snprintf(new_lua_cpath, sizeof(new_lua_cpath), "%s/?.so;%s", lib_dir,
+        snprintf(new_lua_cpath, sizeof(new_lua_cpath), "%s/?.so;%s;;", lib_dir,
                  current_lua_cpath);
     } else {
-        snprintf(new_lua_cpath, sizeof(new_lua_cpath), "%s/?.so", lib_dir);
+        snprintf(new_lua_cpath, sizeof(new_lua_cpath), "%s/?.so;;", lib_dir);
     }
 
     // Set the environment variables
