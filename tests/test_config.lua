@@ -223,5 +223,53 @@ return {
     os.remove(temp_file)
 end
 
+-- Test loading empty config should use defaults
+function tests.test_load_empty_config_uses_defaults()
+    -- Create an empty config file
+    local temp_file = "/tmp/test_config_empty_" .. tostring(os.time()) .. "_" .. tostring(math.random(10000)) .. ".lua"
+    local file = io.open(temp_file, "w")
+    assert(file, "Failed to create temp file")
+    file:write([[
+return {}
+]])
+    file:close()
+
+    -- Loading should succeed and use defaults
+    local config = Config.load(temp_file)
+
+    -- Verify defaults are used
+    assert.is_table(config)
+    assert.is_table(config.templates)
+    assert.equal("templates", config.templates.directory)
+
+    -- Clean up
+    os.remove(temp_file)
+end
+
+-- Test loading config with empty templates table should use default directory
+function tests.test_load_config_empty_templates_uses_default_directory()
+    -- Create a config file with empty templates table
+    local temp_file = "/tmp/test_config_empty_templates_" .. tostring(os.time()) .. "_" .. tostring(math.random(10000)) .. ".lua"
+    local file = io.open(temp_file, "w")
+    assert(file, "Failed to create temp file")
+    file:write([[
+return {
+    templates = {}
+}
+]])
+    file:close()
+
+    -- Loading should succeed and use default directory
+    local config = Config.load(temp_file)
+
+    -- Verify defaults are used for missing directory
+    assert.is_table(config)
+    assert.is_table(config.templates)
+    assert.equal("templates", config.templates.directory)
+
+    -- Clean up
+    os.remove(temp_file)
+end
+
 return tests
 

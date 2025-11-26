@@ -2,7 +2,7 @@ local Config = {}
 
 --- Load configuration from a file
 -- @param config_path string: Path to the config file (optional, defaults to "./config.lua")
--- @return table: The loaded configuration
+-- @return table: The loaded configuration merged with defaults
 function Config.load(config_path)
     config_path = config_path or "./config.lua"
 
@@ -16,6 +16,9 @@ function Config.load(config_path)
     if type(config) ~= "table" then
         error("Config file '" .. config_path .. "' must return a table")
     end
+
+    -- Merge config with defaults
+    config = Config.merge_defaults(config)
 
     -- Validate configuration structure
     Config.validate(config, config_path)
@@ -61,6 +64,33 @@ function Config.defaults()
             directory = "templates"
         }
     }
+end
+
+--- Merge user config with defaults
+-- @param user_config table: The user-provided configuration
+-- @return table: Configuration merged with defaults
+function Config.merge_defaults(user_config)
+    local defaults = Config.defaults()
+    local merged = {}
+
+    -- Start with defaults
+    for key, value in pairs(defaults) do
+        merged[key] = value
+    end
+
+    -- Override with user config, doing shallow merge for nested tables
+    for key, value in pairs(user_config) do
+        if type(value) == "table" and type(merged[key]) == "table" then
+            -- Shallow merge nested tables
+            for nested_key, nested_value in pairs(value) do
+                merged[key][nested_key] = nested_value
+            end
+        else
+            merged[key] = value
+        end
+    end
+
+    return merged
 end
 
 return Config
