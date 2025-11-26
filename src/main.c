@@ -1,4 +1,6 @@
 #include <lauxlib.h>
+#include <libgen.h>
+#include <limits.h>
 #include <lua.h>
 #include <lualib.h>
 #include <netdb.h>
@@ -130,7 +132,92 @@ void free_worker(struct WorkerState *worker) {
     }
 }
 
+/**
+ * Detect if we're running from a LuaRocks tree and set up paths accordingly.
+ * This checks for the presence of nibiru_core.so relative to the binary
+ * location.
+ */
+void setup_rocks_paths() {
+    char exe_path[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (len == -1) {
+        // Fallback: try argv[0] if readlink fails
+        return;
+    }
+    exe_path[len] = '\0';
+
+    // Get directory of executable (dirname modifies the string, so copy it
+    // first)
+    char exe_path_copy[PATH_MAX];
+    strcpy(exe_path_copy, exe_path);
+    char *exe_dir = dirname(exe_path_copy);
+
+    // Check if this looks like a rocks tree structure
+    // From .rocks/bin/nibiru, we expect .rocks/lib/lua/5.x/nibiru_core.so
+    char lib_path[PATH_MAX];
+    char share_path[PATH_MAX];
+
+    // Try different Lua versions (5.1, 5.2, 5.3, 5.4)
+    const char *lua_versions[] = {"5.1", "5.2", "5.3", "5.4", NULL};
+    int found = 0;
+
+    for (const char **version = lua_versions; *version != NULL; version++) {
+        // Construct path to lib directory
+        snprintf(lib_path, sizeof(lib_path), "%s/../lib/lua/%s/nibiru_core.so",
+                 exe_dir, *version);
+        snprintf(share_path, sizeof(share_path), "%s/../share/lua/%s", exe_dir,
+                 *version);
+
+        if (access(lib_path, F_OK) == 0) {
+            found = 1;
+            break;
+        }
+    }
+
+    if (!found) {
+        // Not in a rocks tree, return
+        return;
+    }
+
+    // Get current LUA_PATH and LUA_CPATH
+    const char *current_lua_path = getenv("LUA_PATH");
+    const char *current_lua_cpath = getenv("LUA_CPATH");
+
+    // Construct new paths
+    char new_lua_path[4096];
+    char new_lua_cpath[4096];
+
+    // LUA_PATH: Add share/lua/5.x/?.lua and share/lua/5.x/?/init.lua
+    if (current_lua_path) {
+        snprintf(new_lua_path, sizeof(new_lua_path),
+                 "%s/?.lua;%s/?/init.lua;%s", share_path, share_path,
+                 current_lua_path);
+    } else {
+        snprintf(new_lua_path, sizeof(new_lua_path), "%s/?.lua;%s/?/init.lua",
+                 share_path, share_path);
+    }
+
+    // LUA_CPATH: Add lib/lua/5.x/?.so
+    char lib_dir[PATH_MAX];
+    snprintf(lib_dir, sizeof(lib_dir), "%s/../lib/lua/%s", exe_dir,
+             "5.4"); // Use the version we found
+
+    if (current_lua_cpath) {
+        snprintf(new_lua_cpath, sizeof(new_lua_cpath), "%s/?.so;%s", lib_dir,
+                 current_lua_cpath);
+    } else {
+        snprintf(new_lua_cpath, sizeof(new_lua_cpath), "%s/?.so", lib_dir);
+    }
+
+    // Set the environment variables
+    setenv("LUA_PATH", new_lua_path, 1);
+    setenv("LUA_CPATH", new_lua_cpath, 1);
+}
+
 int main(int argc, char *argv[]) {
+    // Set up paths if running from a LuaRocks tree
+    setup_rocks_paths();
+
     /*
      * Process arguments.
      */

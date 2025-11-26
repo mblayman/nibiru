@@ -4,6 +4,8 @@ CFLAGS += -I/usr/local/Cellar/lua/5.4.6/include/lua
 CFLAGS += -L/usr/local/Cellar/lua/5.4.6/lib
 CFLAGS += -llua
 
+build: exe lib
+
 lib:
 	cc \
 	$(CFLAGS) \
@@ -11,7 +13,7 @@ lib:
 	src/libnibiru.c \
 	-o lua/nibiru_core.so
 
-build:
+exe:
 	cc \
 	$(CFLAGS) \
 	src/main.c \
