@@ -16,7 +16,7 @@ local CONVERTER_TRANSFORMS = { integer = math.tointeger }
 --- Make a pattern that corresponds to path.
 ---
 --- If the path includes parameters, then converters are returned in the table
---- which will be used later to construct arguments to the controller that is
+--- which will be used later to construct arguments to the responder that is
 --- associated with the Route.
 --- @param path string The desired routing path
 --- @return string pattern The string pattern used for matching
@@ -60,7 +60,7 @@ end
 --- @field path string The path to reach the route
 --- @field path_pattern string The string pattern corresponding to the path
 --- @field converters table Converters for parameters in the path
---- @field controller function The controller that will handle the route
+--- @field responder function The responder that will handle the route
 --- @field methods Method[] The allowed HTTP methods
 local Route = {
     NO_MATCH = NO_MATCH,
@@ -72,14 +72,14 @@ Route.__index = Route
 --- Create a route.
 --- @param _ any
 --- @param path string The path to reach the route
---- @param controller function The controller that will handle the route
+--- @param responder function The responder that will handle the route
 --- @param methods Method[] The allowed HTTP methods
 --- @return Route
-local function _init(_, path, controller, methods)
+local function _init(_, path, responder, methods)
     local self = setmetatable({}, Route)
     self.path = path
     self.path_pattern, self.converters = make_path_matcher(path)
-    self.controller = controller
+    self.responder = responder
 
     -- Use a lookup table for allowed methods for faster checking at runtime.
     if methods then
@@ -112,7 +112,7 @@ function Route.matches(self, method, path)
     end
 end
 
----Run a route by preparing parameters and invoking the controller.
+---Run a route by preparing parameters and invoking the responder.
 ---@param self Route
 ---@param request Request
 ---@return Response
@@ -130,7 +130,7 @@ function Route.run(self, request)
         end
     end
 
-    return self.controller(request, table.unpack(parameters))
+    return self.responder(request, table.unpack(parameters))
 end
 
 return Route

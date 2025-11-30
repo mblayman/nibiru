@@ -8,7 +8,7 @@ Request.__index = Request
 
 --- An HTTP request
 ---
---- The request object is the primary input interface for controllers.
+--- The request object is the primary input interface for responders.
 ---
 --- @param method? Method
 --- @param path? string HTTP request path
@@ -41,7 +41,7 @@ Response.__index = Response
 
 --- An HTTP response
 ---
---- The response object is the primary output interface for controllers.
+--- The response object is the primary output interface for responders.
 ---
 --- @param status_code? integer
 --- @param content? string

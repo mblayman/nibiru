@@ -6,20 +6,20 @@ local tests = {}
 
 function tests.test_constructor()
     local path = "/hello"
-    local controller = function() end
-    local route = Route(path, controller, { "GET", "POST" })
+    local responder = function() end
+    local route = Route(path, responder, { "GET", "POST" })
 
     assert.equal(Route, getmetatable(route))
     assert.equal(path, route.path)
-    assert.equal(controller, route.controller)
+    assert.equal(responder, route.responder)
     assert.same({ GET = true, POST = true }, route.methods)
 end
 
 -- When no methods are provided, only GET is allowed.
 function tests.test_optional_methods()
     local path = "/hello"
-    local controller = function() end
-    local route = Route(path, controller)
+    local responder = function() end
+    local route = Route(path, responder)
 
     assert.same({ GET = true }, route.methods)
 end
@@ -74,8 +74,8 @@ end
 
 -- Route generates path pattern with no parameter.
 function tests.test_no_parameter_pattern()
-    local controller = function() end
-    local route = Route("/users", controller)
+    local responder = function() end
+    local route = Route("/users", responder)
 
     assert.equal("^/users$", route.path_pattern)
     assert.same({}, route.converters)
@@ -83,8 +83,8 @@ end
 
 -- Route generates path pattern with one parameter.
 function tests.test_one_parameter_pattern()
-    local controller = function() end
-    local route = Route("/users/{id:integer}", controller)
+    local responder = function() end
+    local route = Route("/users/{id:integer}", responder)
 
     assert.equal("^/users/([%d]+)$", route.path_pattern)
     assert.same({ "integer" }, route.converters)
@@ -92,8 +92,8 @@ end
 
 -- Route generates path pattern with multiple parameters.
 function tests.test_multiple_parameters_pattern()
-    local controller = function() end
-    local route = Route("/users/{username:string}/posts/{id:integer}", controller)
+    local responder = function() end
+    local route = Route("/users/{username:string}/posts/{id:integer}", responder)
 
     assert.equal("^/users/([^/]+)/posts/([%d]+)$", route.path_pattern)
     assert.same({ "string", "integer" }, route.converters)
@@ -101,9 +101,9 @@ end
 
 -- Route fails with an unknown converter.
 function tests.test_unknown_converter()
-    local controller = function() end
+    local responder = function() end
     local status, msg = pcall(function()
-        Route("/users/{id:nope}", controller)
+        Route("/users/{id:nope}", responder)
     end)
 
     assert.is_false(status)
@@ -113,11 +113,11 @@ end
 -- Route run sends correct parameters and returns a response.
 function tests.test_run()
     local actual_request, actual_username, actual_id
-    local controller = function(request, username, id)
+    local responder = function(request, username, id)
         actual_request, actual_username, actual_id = request, username, id
         return http.ok()
     end
-    local route = Route("/users/{username:string}/posts/{id:integer}", controller)
+    local route = Route("/users/{username:string}/posts/{id:integer}", responder)
     local request = http.get("/users/matt/posts/42")
 
     local response = route:run(request)
