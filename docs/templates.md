@@ -684,9 +684,9 @@ Output:
 </div>
 ```
 
-Components are inlined during compilation for maximum performance - no runtime component resolution overhead.
+ Components are inlined during compilation for maximum performance - no runtime component resolution overhead.
 
-### Advanced Features
+ ### Advanced Features
 
 #### Component Composition
 
@@ -712,6 +712,79 @@ Template.component("Button", [[
   {{text}}
 </button>
 ]])
+```
+
+## HTTP Response Rendering
+
+The template system integrates seamlessly with Nibiru's HTTP response system, providing a convenient `render` function that returns complete HTTP responses for use in route responders.
+
+### Basic Template Rendering
+
+Import the `render` function and use it to render registered templates and return HTTP responses:
+
+```lua
+local render = require("nibiru.template").render
+
+-- Register a template (typically done at app startup)
+local Template = require("nibiru.template")
+Template.register("welcome.html", [[
+<div class="welcome">
+  <h1>Hello {{user.name}}!</h1>
+  <p>Welcome to {{site.name}}</p>
+</div>
+]])
+
+-- In a route responder
+function welcome_responder(request)
+  return render("welcome.html", {
+    user = { name = "Alice" },
+    site = { name = "My App" }
+  })
+end
+```
+
+This automatically returns an HTTP 200 response with `text/html` content type.
+
+### Custom Response Parameters
+
+Customize the HTTP response by specifying content type, status code, and headers:
+
+```lua
+-- Custom content type and status
+function api_response(request)
+  return render("data.json", data, "application/json", 201)
+end
+
+-- With custom headers
+function download_page(request)
+  return render("report.html", report_data, "text/html", 200, {
+    ["Content-Disposition"] = 'attachment; filename="report.html"'
+  })
+end
+```
+
+### Parameter Order
+
+The `render` function parameters are ordered for common usage patterns:
+
+```lua
+render(template_name, context, content_type, status_code, headers)
+```
+
+- `template_name` (string): Name of the registered template
+- `context` (table, optional): Variables for template rendering
+- `content_type` (string, optional): MIME type (default: "text/html")
+- `status_code` (integer, optional): HTTP status code (default: 200)
+- `headers` (table, optional): Additional HTTP headers
+
+### Error Handling
+
+The `render` function will error if the template is not found:
+
+```lua
+-- This will throw an error
+return render("nonexistent.html", {})
+-- Error: Template 'nonexistent.html' not found
 ```
 
 ## Template Inheritance

@@ -1,6 +1,7 @@
 -- nibiru/template.lua
 
 local builtin_filters = require("nibiru.builtin_filters")
+local http = require("nibiru.http")
 local Tokenizer = require("nibiru.tokenizer")
 
 local Template = {}
@@ -73,6 +74,32 @@ end
 --- Clear all registered templates (for testing).
 function Template.clear_templates()
     template_registry = {}
+end
+
+--- Render a registered template and return an HTTP response.
+---@param template_name string Name of the registered template
+---@param context table? Context variables for template rendering
+---@param content_type string? MIME type (default: "text/html")
+---@param status_code integer? HTTP status code (default: 200)
+---@param headers table? Additional HTTP headers
+---@return Response HTTP Response object
+function Template.render(template_name, context, content_type, status_code, headers)
+    local template_str = template_registry[template_name]
+    if not template_str then
+        error("Template '" .. template_name .. "' not found")
+    end
+
+    -- Compile and render template
+    local compiled = Template(template_str)
+    local content = compiled.render(context or {})
+
+    -- Return HTTP response
+    return http.Response(
+        status_code or 200,
+        content,
+        content_type or "text/html",
+        headers or {}
+    )
 end
 
 --- Escape a string for safe inclusion in Lua double-quoted string literals.
@@ -488,7 +515,11 @@ local function process_child_tokens(child_tokens, child_blocks)
     local i = 1
     while i <= #child_tokens do
         local token = child_tokens[i]
-        if token.type == "BLOCK_START" and i + 1 <= #child_tokens and child_tokens[i + 1].type == "IDENTIFIER" then
+        if
+            token.type == "BLOCK_START"
+            and i + 1 <= #child_tokens
+            and child_tokens[i + 1].type == "IDENTIFIER"
+        then
             local block_name = child_tokens[i + 1].value
             -- Skip BLOCK_START and IDENTIFIER
             i = i + 2
@@ -513,7 +544,8 @@ local function process_child_tokens(child_tokens, child_blocks)
             -- If this block is not overridden, expand it
             if not child_blocks[block_name] then
                 -- Recursively process the block content and add to result
-                local processed_content = process_child_tokens(block_content, child_blocks)
+                local processed_content =
+                    process_child_tokens(block_content, child_blocks)
                 for _, t in ipairs(processed_content) do
                     table.insert(result, t)
                 end
@@ -575,13 +607,18 @@ local function resolve_inheritance_chain(template_name, current_template_str)
         local pos = 1
         while pos <= #template_str do
             local block_start = template_str:find("{% block ", pos, true)
-            if not block_start then break end
+            if not block_start then
+                break
+            end
 
             local name_start = block_start + #"{% block "
             local name_end = template_str:find("%%}", name_start)
-            if not name_end then break end
+            if not name_end then
+                break
+            end
 
-            local block_name = template_str:sub(name_start, name_end - 1):gsub("%s*$", "")
+            local block_name =
+                template_str:sub(name_start, name_end - 1):gsub("%s*$", "")
             local content_start = name_end + 2
 
             -- Find matching endblock by counting block nesting
@@ -589,10 +626,15 @@ local function resolve_inheritance_chain(template_name, current_template_str)
             local depth = 0
             local endblock_pos = nil
             while search_pos <= #template_str do
-                local next_block_start = template_str:find("{% block ", search_pos, true)
-                local next_endblock = template_str:find("{% endblock %}", search_pos, true)
+                local next_block_start =
+                    template_str:find("{% block ", search_pos, true)
+                local next_endblock =
+                    template_str:find("{% endblock %}", search_pos, true)
 
-                if next_block_start and (not next_endblock or next_block_start < next_endblock) then
+                if
+                    next_block_start
+                    and (not next_endblock or next_block_start < next_endblock)
+                then
                     depth = depth + 1
                     search_pos = next_block_start + #"{% block "
                 elseif next_endblock then
@@ -606,12 +648,15 @@ local function resolve_inheritance_chain(template_name, current_template_str)
                     break
                 end
             end
-            if not endblock_pos then break end
+            if not endblock_pos then
+                break
+            end
 
             local content = template_str:sub(content_start, endblock_pos - 1)
-            local original = template_str:sub(block_start, endblock_pos + #"{% endblock %}" - 1)
+            local original =
+                template_str:sub(block_start, endblock_pos + #"{% endblock %}" - 1)
             if not all_blocks[block_name] then
-                all_blocks[block_name] = {original = original, content = content}
+                all_blocks[block_name] = { original = original, content = content }
             else
                 -- Later templates override
                 all_blocks[block_name].content = content
@@ -643,13 +688,18 @@ local function resolve_inheritance_chain(template_name, current_template_str)
         local pos = 1
         while pos <= #current_str do
             local block_start = current_str:find("{% block ", pos, true)
-            if not block_start then break end
+            if not block_start then
+                break
+            end
 
             local name_start = block_start + #"{% block "
             local name_end = current_str:find("%%}", name_start)
-            if not name_end then break end
+            if not name_end then
+                break
+            end
 
-            local block_name = current_str:sub(name_start, name_end - 1):gsub("%s*$", "")
+            local block_name =
+                current_str:sub(name_start, name_end - 1):gsub("%s*$", "")
             local content_start = name_end + 2
 
             -- Find matching endblock
@@ -658,9 +708,13 @@ local function resolve_inheritance_chain(template_name, current_template_str)
             local endblock_pos = nil
             while search_pos <= #current_str do
                 local next_block_start = current_str:find("{% block ", search_pos, true)
-                local next_endblock = current_str:find("{% endblock %}", search_pos, true)
+                local next_endblock =
+                    current_str:find("{% endblock %}", search_pos, true)
 
-                if next_block_start and (not next_endblock or next_block_start < next_endblock) then
+                if
+                    next_block_start
+                    and (not next_endblock or next_block_start < next_endblock)
+                then
                     depth = depth + 1
                     search_pos = next_block_start + #"{% block "
                 elseif next_endblock then
@@ -674,11 +728,14 @@ local function resolve_inheritance_chain(template_name, current_template_str)
                     break
                 end
             end
-            if not endblock_pos then break end
+            if not endblock_pos then
+                break
+            end
 
             local content = current_str:sub(content_start, endblock_pos - 1)
-            local original = current_str:sub(block_start, endblock_pos + #"{% endblock %}" - 1)
-            all_blocks[block_name] = {original = original, content = content} -- Current template blocks override all others
+            local original =
+                current_str:sub(block_start, endblock_pos + #"{% endblock %}" - 1)
+            all_blocks[block_name] = { original = original, content = content } -- Current template blocks override all others
             -- Track block order
             local already_in_order = false
             for _, existing in ipairs(block_order) do
@@ -696,7 +753,7 @@ local function resolve_inheritance_chain(template_name, current_template_str)
     end
 
     -- Start with the root template and replace all blocks
-    local result = template_registry[chain[1]]:gsub("^{%s*extends%s+\"[^\"]+\"%s*%}", "")
+    local result = template_registry[chain[1]]:gsub('^{%s*extends%s+"[^"]+"%s*%}', "")
 
     -- Function to recursively replace block tags with their content
     local function process_blocks(content)
@@ -704,13 +761,18 @@ local function resolve_inheritance_chain(template_name, current_template_str)
         local pos = 1
         while pos <= #result_content do
             local block_start = result_content:find("{% block ", pos, true)
-            if not block_start then break end
+            if not block_start then
+                break
+            end
 
             local name_start = block_start + #"{% block "
             local name_end = result_content:find("%}", name_start)
-            if not name_end then break end
+            if not name_end then
+                break
+            end
 
-            local block_name = result_content:sub(name_start, name_end - 2):gsub("%s*$", "")
+            local block_name =
+                result_content:sub(name_start, name_end - 2):gsub("%s*$", "")
             local content_start = name_end + 1
 
             -- Find matching endblock
@@ -718,10 +780,15 @@ local function resolve_inheritance_chain(template_name, current_template_str)
             local depth = 0
             local endblock_pos = nil
             while search_pos <= #result_content do
-                local next_block_start = result_content:find("{% block ", search_pos, true)
-                local next_endblock = result_content:find("{% endblock %}", search_pos, true)
+                local next_block_start =
+                    result_content:find("{% block ", search_pos, true)
+                local next_endblock =
+                    result_content:find("{% endblock %}", search_pos, true)
 
-                if next_block_start and (not next_endblock or next_block_start < next_endblock) then
+                if
+                    next_block_start
+                    and (not next_endblock or next_block_start < next_endblock)
+                then
                     depth = depth + 1
                     search_pos = next_block_start + #"{% block "
                 elseif next_endblock then
@@ -735,7 +802,9 @@ local function resolve_inheritance_chain(template_name, current_template_str)
                     break
                 end
             end
-            if not endblock_pos then break end
+            if not endblock_pos then
+                break
+            end
 
             -- Get the block content
             local block_content = result_content:sub(content_start, endblock_pos - 1)
@@ -920,7 +989,8 @@ local function compile(template_str)
         processing_templates[parent_template_name] = true
 
         -- Resolve the complete inheritance chain
-        local resolved_str = resolve_inheritance_chain(parent_template_name, template_str)
+        local resolved_str =
+            resolve_inheritance_chain(parent_template_name, template_str)
         tokens = Tokenizer.tokenize(resolved_str)
 
         parser = { tokens = tokens, pos = 1 }

@@ -268,4 +268,79 @@ function tests.test_expression_property_access_in_attributes()
     assert.equal('<div>Bob - Admin</div>', result)
 end
 
+-- Render: Basic template rendering with defaults
+function tests.test_render_basic()
+    Template.clear_templates()
+    Template.register("test.html", "Hello {{name}}!")
+
+    local response = Template.render("test.html", { name = "World" })
+
+    assert.equal(200, response.status_code)
+    assert.equal("Hello World!", response.content)
+    assert.equal("text/html", response.content_type)
+    assert.equal(type(response.headers), "table")
+end
+
+-- Render: Custom content type
+function tests.test_render_custom_content_type()
+    Template.clear_templates()
+    Template.register("data.json", '{"name": "{{name}}"}')
+
+    local response = Template.render("data.json", { name = "Alice" }, "application/json")
+
+    assert.equal(200, response.status_code)
+    assert.equal('{"name": "Alice"}', response.content)
+    assert.equal("application/json", response.content_type)
+end
+
+-- Render: Custom status code
+function tests.test_render_custom_status_code()
+    Template.clear_templates()
+    Template.register("created.html", "<p>Created: {{item}}</p>")
+
+    local response = Template.render("created.html", { item = "New User" }, "text/html", 201)
+
+    assert.equal(201, response.status_code)
+    assert.equal("<p>Created: New User</p>", response.content)
+    assert.equal("text/html", response.content_type)
+end
+
+-- Render: Custom headers
+function tests.test_render_custom_headers()
+    Template.clear_templates()
+    Template.register("download.html", "<h1>{{title}}</h1>")
+
+    local custom_headers = { ["Content-Disposition"] = 'attachment; filename="report.html"' }
+    local response = Template.render("download.html", { title = "Report" }, "text/html", 200, custom_headers)
+
+    assert.equal(200, response.status_code)
+    assert.equal("<h1>Report</h1>", response.content)
+    assert.equal("text/html", response.content_type)
+    assert.equal('attachment; filename="report.html"', response.headers["Content-Disposition"])
+end
+
+-- Render: Empty context defaults to empty table
+function tests.test_render_empty_context()
+    Template.clear_templates()
+    Template.register("simple.html", "Simple content")
+
+    local response = Template.render("simple.html")
+
+    assert.equal(200, response.status_code)
+    assert.equal("Simple content", response.content)
+    assert.equal("text/html", response.content_type)
+end
+
+-- Render: Error when template not found
+function tests.test_render_template_not_found()
+    Template.clear_templates()
+
+    local success, err = pcall(function()
+        Template.render("nonexistent.html", {})
+    end)
+
+    assert.is_false(success)
+    assert.match("Template 'nonexistent.html' not found", err)
+end
+
 return tests
