@@ -321,9 +321,10 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // TODO: setsockopt for SO_REUSEADDR. This may be needed if hitting the
-        // TIME_WAIT state. It introduces some data risk.
-        // https://stackoverflow.com/a/3233022 covers this well.
+        // Allow reuse of addresses to avoid TIME_WAIT issues when restarting.
+        int opt = 1;
+        setsockopt(listen_socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt,
+                   sizeof(opt));
 
         status = bind(listen_socket_fd, current_server_info->ai_addr,
                       current_server_info->ai_addrlen);
