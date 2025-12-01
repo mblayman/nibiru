@@ -18,6 +18,10 @@ local filter_registry = {}
 ---@type table<string, string>
 local template_registry = {}
 
+--- Compiled template registry: maps template names to their compiled render functions
+---@type table<string, function>
+local compiled_registry = {}
+
 --- Set of template names currently being processed (to detect cycles)
 ---@type table<string, boolean>
 local processing_templates = {}
@@ -58,23 +62,7 @@ function Template.clear_filters()
     filter_registry = {}
 end
 
---- Register a named template for inheritance.
----@param name string Template name (should be a valid identifier)
----@param template_string string The template content
-function Template.register(name, template_string)
-    if not name or name == "" then
-        error("Template name cannot be empty")
-    end
-    if template_registry[name] then
-        error("Template '" .. name .. "' is already registered")
-    end
-    template_registry[name] = template_string
-end
 
---- Clear all registered templates (for testing).
-function Template.clear_templates()
-    template_registry = {}
-end
 
 --- Render a registered template and return an HTTP response.
 ---@param template_name string Name of the registered template
@@ -84,13 +72,12 @@ end
 ---@param headers table? Additional HTTP headers
 ---@return Response HTTP Response object
 function Template.render(template_name, context, content_type, status_code, headers)
-    local template_str = template_registry[template_name]
-    if not template_str then
+    local compiled = compiled_registry[template_name]
+    if not compiled then
         error("Template '" .. template_name .. "' not found")
     end
 
-    -- Compile and render template
-    local compiled = Template(template_str)
+    -- Render pre-compiled template
     local content = compiled.render(context or {})
 
     -- Return HTTP response
@@ -1658,6 +1645,27 @@ local function compile(template_str)
         end,
     })
     return result
+end
+
+--- Register a named template for inheritance.
+---@param name string Template name (should be a valid identifier)
+---@param template_string string The template content
+function Template.register(name, template_string)
+    if not name or name == "" then
+        error("Template name cannot be empty")
+    end
+    if template_registry[name] then
+        error("Template '" .. name .. "' is already registered")
+    end
+    template_registry[name] = template_string
+    -- Pre-compile the template for fast rendering
+    compiled_registry[name] = compile(template_string)
+end
+
+--- Clear all registered templates (for testing).
+function Template.clear_templates()
+    template_registry = {}
+    compiled_registry = {}
 end
 
 -- Load built-in filters automatically
