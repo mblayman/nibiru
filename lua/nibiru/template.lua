@@ -18,8 +18,8 @@ local filter_registry = {}
 ---@type table<string, string>
 local template_registry = {}
 
---- Compiled template registry: maps template names to their compiled render functions
----@type table<string, function>
+--- Compiled template registry: maps template names to their compiled template objects
+---@type table<string, table>
 local compiled_registry = {}
 
 --- Set of template names currently being processed (to detect cycles)
