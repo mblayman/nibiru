@@ -4,7 +4,18 @@ local builtin_filters = require("nibiru.builtin_filters")
 local http = require("nibiru.http")
 local Tokenizer = require("nibiru.tokenizer")
 
+--- @class Template
+--- @field render fun(context: table): string Renders the template with the given context
+--- @field code string The compiled Lua code for debugging
 local Template = {}
+
+--- Metatable for Template instances
+local Template_mt = {
+    __call = function(self, context)
+        return self.render(context)
+    end,
+    __index = Template
+}
 
 --- Component registry: maps component names to their template strings
 ---@type table<string, string>
@@ -18,8 +29,8 @@ local filter_registry = {}
 ---@type table<string, string>
 local template_registry = {}
 
---- Compiled template registry: maps template names to their compiled template objects
----@type table<string, table>
+--- Compiled template registry: maps template names to their compiled Template instances
+---@type table<string, Template>
 local compiled_registry = {}
 
 --- Set of template names currently being processed (to detect cycles)
@@ -1629,7 +1640,7 @@ local function compile(template_str)
     -- Format the body for pretty printing
     local formatted_body = table.concat(body_parts, "\n")
 
-    -- Return a table with render function and the formatted code
+    -- Return a Template instance
     local result = {
         render = function(context)
             -- Wrap context in a table if not already
@@ -1638,12 +1649,8 @@ local function compile(template_str)
         end,
         code = formatted_body,
     }
-    -- Make the table callable for backward compatibility
-    setmetatable(result, {
-        __call = function(self, context)
-            return self.render(context)
-        end,
-    })
+    -- Make it a proper Template instance
+    setmetatable(result, Template_mt)
     return result
 end
 
