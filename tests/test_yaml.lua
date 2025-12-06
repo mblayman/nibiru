@@ -54,7 +54,7 @@ end
 function tests.test_complex_structure()
     local result, err = yaml.parse("---\ntitle: \"My Blog Post\"\ndate: \"2024-01-01\"\npublished: true\ntags: [lua, web, tutorial]\nauthor:\n  name: \"John Doe\"\n  email: \"john@example.com\"\n  social:\n    twitter: \"@johndoe\"\n    github: \"johndoe\"\n---")
     assert.is_nil(err)
-    assert.same(result, {
+    local expected = {
         title = "My Blog Post",
         date = "2024-01-01",
         published = true,
@@ -67,7 +67,9 @@ function tests.test_complex_structure()
                 github = "johndoe"
             }
         }
-    })
+    }
+
+    assert.same(result, expected)
 end
 
 -- Test empty frontmatter
