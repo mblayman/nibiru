@@ -1,6 +1,6 @@
 local yaml = {}
 
--- Simple YAML parser for frontmatter with basic nested object support
+-- YAML parser for frontmatter with proper nested object support
 function yaml.parse(input)
     if type(input) ~= "string" then
         return nil, "expected string"
@@ -15,12 +15,15 @@ function yaml.parse(input)
         return nil, "missing closing"
     end
 
-    -- Simple parsing: split by lines, handle basic nesting
-    local result = {}
+    -- Split into lines
     local lines = {}
     for line in input:gmatch("[^\n]+") do
         table.insert(lines, line)
     end
+
+    -- Parse with proper nesting using context stack
+    local result = {}
+    local context_stack = {{table = result, indent = -1}} -- Root context
 
     local i = 2 -- Skip opening ---
     while i <= #lines and lines[i] ~= "---" do
@@ -44,44 +47,37 @@ function yaml.parse(input)
                 key = key:gsub("%s+$", "")
                 value = value or ""
 
-                if indent == 0 then
-                    -- Root level
-                    if value == "" and i < #lines then
-                        -- Check if next line is indented
-                        local next_line = lines[i + 1]
-                        if next_line and next_line:match("^%s+") then
-                            result[key] = {}
-                        else
-                            result[key] = parse_value(value)
-                        end
-                    else
-                        result[key] = parse_value(value)
-                    end
-                else
-                    -- Nested - find parent
-                    local parent = nil
-                    for j = i-1, 1, -1 do
-                        local prev_line = lines[j]
-                        if prev_line:match("%S") then
-                            local prev_indent = 0
-                            local prev_rest = prev_line
-                            while prev_rest:sub(1, 1) == " " do
-                                prev_indent = prev_indent + 1
-                                prev_rest = prev_rest:sub(2)
-                            end
-                            if prev_indent < indent then
-                                local prev_key = prev_rest:match("^([^:]+):")
-                                if prev_key then
-                                    parent = prev_key:gsub("%s+$", "")
-                                    break
-                                end
-                            end
-                        end
-                    end
+                -- Pop contexts that are at the same or deeper indentation
+                while #context_stack > 1 and context_stack[#context_stack].indent >= indent do
+                    table.remove(context_stack)
+                end
 
-                    if parent and result[parent] then
-                        result[parent][key] = parse_value(value)
+                local current_context = context_stack[#context_stack]
+
+                -- Check if this should create a nested object
+                local should_nest = false
+                if value == "" and i < #lines then
+                    local next_line = lines[i + 1]
+                    if next_line and next_line:match("%S") then
+                        local next_indent = 0
+                        local next_rest = next_line
+                        while next_rest:sub(1, 1) == " " do
+                            next_indent = next_indent + 1
+                            next_rest = next_rest:sub(2)
+                        end
+                        if next_indent > indent then
+                            should_nest = true
+                        end
                     end
+                end
+
+                if should_nest then
+                    -- Create nested table and push new context
+                    current_context.table[key] = {}
+                    table.insert(context_stack, {table = current_context.table[key], indent = indent})
+                else
+                    -- Set value in current context
+                    current_context.table[key] = parse_value(value)
                 end
             end
         end
