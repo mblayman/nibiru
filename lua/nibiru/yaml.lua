@@ -1,6 +1,6 @@
 local yaml = {}
 
--- YAML parser for frontmatter with nested object support
+-- Simple YAML parser for frontmatter with basic nested object support
 function yaml.parse(input)
     if type(input) ~= "string" then
         return nil, "expected string"
@@ -15,217 +15,92 @@ function yaml.parse(input)
         return nil, "missing closing"
     end
 
-    -- Split into lines
+    -- Simple parsing: split by lines, handle basic nesting
+    local result = {}
     local lines = {}
     for line in input:gmatch("[^\n]+") do
         table.insert(lines, line)
     end
 
-    -- Parse the frontmatter
-    local result, err = parse_frontmatter(lines)
-    if not result then
-        return nil, err
-    end
-
-    return result
-end
-
-function parse_frontmatter(lines)
-    local result = {}
-    local i = 1
-
-    -- Skip opening ---
-    if lines[i] == "---" then
-        i = i + 1
-    end
-
-    -- Parse until closing ---
+    local i = 2 -- Skip opening ---
     while i <= #lines and lines[i] ~= "---" do
         local line = lines[i]
-
-
-        -- Skip empty lines
         if line:match("%S") then
             -- Check for invalid syntax
             if not line:match("^%s*[^:]+:%s*") then
                 return nil, "parsing error"
             end
 
-            -- Parse the line and determine nesting
-            local success, indent, key, value = parse_line(line)
-            if not success then
-                return nil, "parsing error"
+            -- Parse line
+            local indent = 0
+            local rest = line
+            while rest:sub(1, 1) == " " do
+                indent = indent + 1
+                rest = rest:sub(2)
             end
 
-            if indent == 0 then
-                -- Root level key
-                local parsed_value = parse_value(value)
-                -- If value is empty and this might be a parent of nested keys, prepare for nesting
-                if value == "" then
-                    -- Check if next non-empty line is indented
-                    local next_line = nil
-                    for k = i+1, #lines do
-                        if lines[k]:match("%S") and lines[k] ~= "---" then
-                            next_line = lines[k]
-                            break
+            local key, value = rest:match("^([^:]+):%s*(.*)$")
+            if key then
+                key = key:gsub("%s+$", "")
+                value = value or ""
+
+                if indent == 0 then
+                    -- Root level
+                    if value == "" and i < #lines then
+                        -- Check if next line is indented
+                        local next_line = lines[i + 1]
+                        if next_line and next_line:match("^%s+") then
+                            result[key] = {}
+                        else
+                            result[key] = parse_value(value)
                         end
+                    else
+                        result[key] = parse_value(value)
                     end
-                    if next_line then
-                        local next_indent = 0
-                        while next_line:sub(1, 1) == " " do
-                            next_indent = next_indent + 1
-                            next_line = next_line:sub(2)
-                        end
-                        if next_indent > 0 then
-                            parsed_value = {}
-                        end
-                    end
-                end
-                result[key] = parsed_value
-            else
-                -- Nested key - validate indentation and find the parent
-                local parent_key = nil
-                local expected_indent = nil
-                for j = i-1, 1, -1 do
-                    local success2, prev_indent, prev_key = parse_line(lines[j])
-                    if success2 then
-                        if prev_indent < indent then
-                            -- This is a potential parent
-                            parent_key = prev_key
-                            break
-                        elseif prev_indent == indent then
-                            -- Sibling at same level - check indentation consistency
-                            if expected_indent and expected_indent ~= indent then
-                                return nil, "parsing error"
+                else
+                    -- Nested - find parent
+                    local parent = nil
+                    for j = i-1, 1, -1 do
+                        local prev_line = lines[j]
+                        if prev_line:match("%S") then
+                            local prev_indent = 0
+                            local prev_rest = prev_line
+                            while prev_rest:sub(1, 1) == " " do
+                                prev_indent = prev_indent + 1
+                                prev_rest = prev_rest:sub(2)
                             end
-                            expected_indent = indent
+                            if prev_indent < indent then
+                                local prev_key = prev_rest:match("^([^:]+):")
+                                if prev_key then
+                                    parent = prev_key:gsub("%s+$", "")
+                                    break
+                                end
+                            end
                         end
                     end
-                end
 
-                -- Validate indentation is consistent (multiple of 2)
-                if indent % 2 ~= 0 then
-                    return nil, "parsing error"
-                end
-
-                if parent_key then
-                    if not result[parent_key] then
-                        result[parent_key] = {}
-                    elseif type(result[parent_key]) ~= "table" then
-                        return nil, "parsing error"
+                    if parent and result[parent] then
+                        result[parent][key] = parse_value(value)
                     end
-
-                    local parsed_value = parse_value(value)
-                    result[parent_key][key] = parsed_value
-                else
-                    return nil, "parsing error"
-                end
-            end
-                -- For nested objects, we need to handle this differently
-                -- For now, let's handle the simple case where we have author: followed by indented keys
-                break
-            end
-
-            if indent == 0 then
-                -- Root level key
-                local parsed_value = parse_value(value)
-                -- If value is empty and this might be a parent of nested keys, prepare for nesting
-                if value == "" then
-                    -- Check if next non-empty line is indented
-                    local next_line = nil
-                    for k = i+1, #lines do
-                        if lines[k]:match("%S") and lines[k] ~= "---" then
-                            next_line = lines[k]
-                            break
-                        end
-                    end
-                    if next_line then
-                        local next_indent = 0
-                        while next_line:sub(1, 1) == " " do
-                            next_indent = next_indent + 1
-                            next_line = next_line:sub(2)
-                        end
-                        if next_indent > 0 then
-                            parsed_value = {}
-                        end
-                    end
-                end
-                result[key] = parsed_value
-            else
-                -- Nested key - find the parent
-                local parent_key = nil
-                local parent_indent = 0
-                for j = i-1, 1, -1 do
-                    local success2, prev_indent, prev_key = parse_line(lines[j])
-                    if success2 and prev_indent < indent then
-                        parent_key = prev_key
-                        parent_indent = prev_indent
-                        break
-                    end
-                end
-
-
-
-                if parent_key then
-                    if not result[parent_key] then
-                        result[parent_key] = {}
-                    elseif type(result[parent_key]) ~= "table" then
-                        return nil, "parsing error"
-                    end
-
-                    local parsed_value = parse_value(value)
-                    result[parent_key][key] = parsed_value
-                else
-                    return nil, "parsing error"
                 end
             end
         end
-
         i = i + 1
     end
 
     return result
 end
 
-function parse_line(line)
-    local indent = 0
-    local rest = line
-
-    -- Count leading spaces
-    while rest:sub(1, 1) == " " do
-        indent = indent + 1
-        rest = rest:sub(2)
-    end
-
-    -- Parse key: value
-    local key, value = rest:match("^([^:]+):%s*(.*)$")
-    if key then
-        key = key:gsub("%s+$", "")
-        value = value or ""
-        return true, indent, key, value
-    end
-
-    return false, 0, nil, nil
-end
-
 function parse_value(value)
     value = value:gsub("^%s+", ""):gsub("%s+$", "")
 
-    -- Parse as boolean
     if value == "true" then
         return true
     elseif value == "false" then
         return false
-    end
-
-    -- Parse as number
-    local num = tonumber(value)
-    if num then
-        return num
-    end
-
-    -- Parse as array
-    if value:sub(1,1) == "[" and value:sub(-1) == "]" then
+    elseif tonumber(value) then
+        return tonumber(value)
+    elseif value:sub(1,1) == "[" and value:sub(-1) == "]" then
         local array = {}
         for item in value:sub(2, -2):gmatch("[^,]+") do
             item = item:gsub("^%s+", ""):gsub("%s+$", "")
@@ -235,14 +110,12 @@ function parse_value(value)
             table.insert(array, item)
         end
         return array
+    else
+        if value:sub(1,1) == '"' and value:sub(-1) == '"' then
+            value = value:sub(2, -2)
+        end
+        return value
     end
-
-    -- Parse as string
-    if value:sub(1,1) == '"' and value:sub(-1) == '"' then
-        value = value:sub(2, -2)
-    end
-
-    return value
 end
 
 return yaml
