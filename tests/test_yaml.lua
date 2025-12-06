@@ -5,7 +5,7 @@ local tests = {}
 
 -- Test basic string values
 function tests.test_basic_string()
-    local result, err = yaml.parse("---\ntitle: \"My Title\"\n---")
+    local result, err = yaml.parse('---\ntitle: "My Title"\n---')
     assert.is_nil(err)
     assert.same(result, { title = "My Title" })
 end
@@ -40,19 +40,22 @@ end
 
 -- Test nested objects
 function tests.test_nested_object()
-    local result, err = yaml.parse("---\nauthor:\n  name: \"John Doe\"\n  email: \"john@example.com\"\n---")
+    local result, err =
+        yaml.parse('---\nauthor:\n  name: "John Doe"\n  email: "john@example.com"\n---')
     assert.is_nil(err)
     assert.same(result, {
         author = {
             name = "John Doe",
-            email = "john@example.com"
-        }
+            email = "john@example.com",
+        },
     })
 end
 
 -- Test complex nested structure
 function tests.test_complex_structure()
-    local result, err = yaml.parse("---\ntitle: \"My Blog Post\"\ndate: \"2024-01-01\"\npublished: true\ntags: [lua, web, tutorial]\nauthor:\n  name: \"John Doe\"\n  email: \"john@example.com\"\n  social:\n    twitter: \"@johndoe\"\n    github: \"johndoe\"\n---")
+    local result, err = yaml.parse(
+        '---\ntitle: "My Blog Post"\ndate: "2024-01-01"\npublished: true\ntags: [lua, web, tutorial]\nauthor:\n  name: "John Doe"\n  email: "john@example.com"\n  social:\n    twitter: "@johndoe"\n    github: "johndoe"\n---'
+    )
     assert.is_nil(err)
     local expected = {
         title = "My Blog Post",
@@ -64,12 +67,12 @@ function tests.test_complex_structure()
             email = "john@example.com",
             social = {
                 twitter = "@johndoe",
-                github = "johndoe"
-            }
-        }
+                github = "johndoe",
+            },
+        },
     }
 
-    assert.same(result, expected)
+    assert.same(expected, result)
 end
 
 -- Test empty frontmatter
@@ -95,7 +98,8 @@ end
 
 -- Test bad indentation
 function tests.test_bad_indentation()
-    local result, err = yaml.parse("---\nauthor:\n  name: John\n    email: john@example.com\n---")
+    local result, err =
+        yaml.parse("---\nauthor:\n  name: John\n    email: john@example.com\n---")
     assert.is_nil(result)
     assert.match(err, "parsing error")
 end
@@ -115,3 +119,4 @@ function tests.test_invalid_input_type()
 end
 
 return tests
+
