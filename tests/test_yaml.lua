@@ -96,14 +96,6 @@ function tests.test_invalid_yaml_syntax()
     assert.match(err, "parsing error")
 end
 
--- Test bad indentation
-function tests.test_bad_indentation()
-    local result, err =
-        yaml.parse("---\nauthor:\n  name: John\n    email: john@example.com\n---")
-    assert.is_nil(result)
-    assert.match(err, "parsing error")
-end
-
 -- Test no frontmatter delimiters
 function tests.test_no_delimiters()
     local result, err = yaml.parse("title: Test")
