@@ -1,8 +1,33 @@
+--- @module nibiru.markdown
+--- Markdown parser with YAML frontmatter support
+--- Implements a recursive descent parser supporting standard markdown features:
+--- - Headers (# ## ###)
+--- - Bold and italic text (**bold**, *italic*)
+--- - Lists (ordered and unordered)
+--- - Code blocks and inline code
+--- - Links and images
+--- - Tables
+--- - Blockquotes
+--- - Horizontal rules
+--- - YAML frontmatter parsing
+
 local yaml = require("nibiru.yaml")
 
+--- @class markdown
+--- Markdown parser module with YAML frontmatter support
 local markdown = {}
 
--- Main parse function
+--- Parse markdown content with optional YAML frontmatter
+--- @param input string The markdown string to parse (may include YAML frontmatter)
+--- @return table|nil result Table with frontmatter, markdown, and html fields, or nil on error
+--- @return string|nil error Error message if parsing failed
+--- @usage
+--- local result = markdown.parse("# Hello\n\nWorld")
+--- print(result.html) -- "<h1>Hello</h1>\n<p>World</p>"
+--- print(result.frontmatter.title) -- Parsed YAML data
+--- @usage
+--- local result = markdown.parse("# Hello\n\nWorld")
+--- print(result.html) -- "<h1>Hello</h1>\n<p>World</p>"
 function markdown.parse(input)
     if type(input) ~= "string" then
         return nil, "expected string"
@@ -79,7 +104,10 @@ function markdown.parse(input)
     }
 end
 
--- Recursive descent markdown parser
+--- Parse markdown text into HTML using recursive descent parsing
+--- @param text string The markdown text to parse
+--- @return string html The rendered HTML string
+--- @return string|nil error Error message if parsing failed (currently always returns html)
 function parse_markdown(text)
     if not text or text == "" then
         return ""
@@ -185,7 +213,9 @@ function parse_markdown(text)
     return table.concat(html_parts, "\n")
 end
 
--- Parse inline markdown elements
+--- Parse inline markdown elements within text
+--- @param text string The text containing inline markdown elements
+--- @return string The text with markdown elements converted to HTML
 function parse_inline(text)
     if not text then return "" end
 
@@ -212,7 +242,10 @@ function parse_inline(text)
     return result
 end
 
--- Parse table structure
+--- Parse a markdown table structure
+--- @param lines table Array of lines from the markdown text
+--- @param start_index number The index of the first table line
+--- @return table result Table with html field containing the rendered table HTML and new_index field
 function parse_table(lines, start_index)
     local headers = {}
     local alignments = {}
@@ -284,7 +317,9 @@ function parse_table(lines, start_index)
     return {html = html, new_index = i}
 end
 
--- Escape HTML entities
+--- Escape HTML entities in text
+--- @param text string The text to escape
+--- @return string The text with HTML entities escaped
 function escape_html(text)
     if not text then return "" end
     return text:gsub("&", "&amp;")

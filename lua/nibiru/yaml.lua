@@ -1,6 +1,19 @@
+--- @module nibiru.yaml
+--- YAML parser for frontmatter with nested object support
+--- Supports parsing YAML frontmatter strings with primitive types, arrays, and nested objects
+--- Used primarily by the markdown parser for frontmatter extraction
+
+--- @class yaml
+--- YAML parser module for parsing YAML frontmatter strings
 local yaml = {}
 
--- YAML parser for frontmatter with proper nested object support
+--- Parse a YAML frontmatter string into a Lua table
+--- @param input string The YAML string to parse (must start with --- and end with ---)
+--- @return table|nil result The parsed YAML data as a Lua table, or nil on error
+--- @return string|nil error Error message if parsing failed
+--- @usage
+--- local data, err = yaml.parse("---\ntitle: Hello\n---\n")
+--- print(data.title) -- "Hello"
 function yaml.parse(input)
     if type(input) ~= "string" then
         return nil, "expected string"
@@ -87,6 +100,9 @@ function yaml.parse(input)
     return result
 end
 
+--- Parse a YAML value string into the appropriate Lua type
+--- @param value string The value string to parse
+--- @return any The parsed value (boolean, number, string, or array)
 function parse_value(value)
     value = value:gsub("^%s+", ""):gsub("%s+$", "")
 
