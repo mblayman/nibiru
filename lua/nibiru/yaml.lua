@@ -11,7 +11,7 @@ function yaml.parse(input)
         return nil, "parsing error"
     end
 
-    if not input:match("---$") then
+    if not input:match("---%s*$") then
         return nil, "missing closing"
     end
 
