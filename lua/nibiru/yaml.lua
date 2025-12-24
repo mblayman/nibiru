@@ -1,10 +1,10 @@
 --- @module nibiru.yaml
 --- YAML parser for frontmatter with nested object support
---- Supports parsing YAML frontmatter strings with primitive types, arrays, nested objects, and folded block scalars
+--- Supports parsing YAML frontmatter strings with primitive types, arrays, nested objects, and folded block scalars (with chomp support)
 --- Used primarily by the markdown parser for frontmatter extraction
 
 --- @class yaml
---- YAML parser module for parsing YAML frontmatter strings with support for primitive types, arrays, nested objects, and folded block scalars
+--- YAML parser module for parsing YAML frontmatter strings with support for primitive types, arrays, nested objects, and folded block scalars (with chomp support)
 local yaml = {}
 
 --- Parse a YAML frontmatter string into a Lua table
@@ -93,8 +93,9 @@ function yaml.parse(input)
                     -- Handle folded block scalar
                     local block_lines = {}
                     local block_indent = indent + 2  -- Block content starts 2 spaces after key
+                    local chomp = value:sub(1,2) == ">-"  -- Check for chomp indicator
 
-                    -- Skip the current line (key: >) and start from next line
+                    -- Skip the current line (key: > or >-) and start from next line
                     i = i + 1
 
                     -- Collect block lines until we reach a line with <= key indentation
@@ -127,8 +128,12 @@ function yaml.parse(input)
                         i = i + 1
                     end
 
-                    -- Join folded block: lines with spaces, trailing newline
-                    local folded_value = table.concat(block_lines, " ") .. "\n"
+                    -- Join folded block: lines with spaces
+                    local folded_value = table.concat(block_lines, " ")
+                    -- Add trailing newline unless chomp is specified
+                    if not chomp then
+                        folded_value = folded_value .. "\n"
+                    end
                     current_context.table[key] = folded_value
                 else
                     -- Set value in current context

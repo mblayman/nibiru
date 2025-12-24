@@ -82,7 +82,7 @@ The parser supports primitive YAML types:
 - **Booleans**: `true`, `false`
 - **Arrays**: `[item1, item2, item3]`
 - **Objects**: Nested key-value structures
-- **Folded Block Scalars**: Multi-line strings using `>` (line breaks converted to spaces)
+- **Folded Block Scalars**: Multi-line strings using `>` or `>-` (line breaks converted to spaces, with `>-` stripping trailing newlines)
 
 ```yaml
 ---
@@ -106,6 +106,12 @@ author:
 description: >
   This is a multi-line description
   where line breaks are converted to spaces.
+
+# Folded block scalars with chomp (strips trailing newline)
+summary: >-
+  This is a multi-line summary
+  where line breaks are converted to spaces
+  and trailing newlines are removed.
 ---
 ```
 

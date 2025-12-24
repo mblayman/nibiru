@@ -148,4 +148,21 @@ description: >
     })
 end
 
+-- Test folded block scalar with chomp (>-)
+function tests.test_folded_block_scalar_chomp()
+    local result, err = yaml.parse([[
+---
+slug: hello-world
+description: >-
+  This is a long string.
+  There are multiple lines.
+---
+]])
+    assert.is_nil(err)
+    assert.same(result, {
+        slug = "hello-world",
+        description = "This is a long string. There are multiple lines.",
+    })
+end
+
 return tests
