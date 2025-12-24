@@ -46,7 +46,7 @@ function markdown.parse(input)
             -- Check next line for YAML
             local next_line = lines[i + 1] or ""
             if next_line:match("^%s*[^%s:]+%s*:") then
-                return nil, "parsing error"
+                return nil, "YAML frontmatter must appear at the beginning of the document"
             end
         end
     end

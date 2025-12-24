@@ -21,7 +21,7 @@ function yaml.parse(input)
 
     -- Check for required delimiters
     if not input:match("^---\n") then
-        return nil, "parsing error"
+        return nil, "YAML frontmatter must start with '---'"
     end
 
     if not input:match("---%s*$") then
@@ -44,7 +44,8 @@ function yaml.parse(input)
         if line:match("%S") then
             -- Check for invalid syntax
             if not line:match("^%s*[^:]+:%s*") then
-                return nil, "parsing error"
+                local line_num = i - 1
+                return nil, string.format("invalid YAML syntax at line %d: '%s'. Expected key-value pairs in format 'key: value'", line_num, line:gsub("^%s+", ""):gsub("%s+$", ""))
             end
 
             -- Parse line

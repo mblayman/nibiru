@@ -86,28 +86,49 @@ end
 function tests.test_missing_closing_delimiter()
     local result, err = yaml.parse("---\ntitle: Test\n")
     assert.is_nil(result)
-    assert.match(err, "missing closing")
+    assert(err:find("missing closing") ~= nil)
 end
 
 -- Test invalid YAML syntax
 function tests.test_invalid_yaml_syntax()
     local result, err = yaml.parse("---\ntitle\n---")
     assert.is_nil(result)
-    assert.match(err, "parsing error")
+    assert(string.find(err, "invalid YAML syntax", 1, true) ~= nil)
 end
 
 -- Test no frontmatter delimiters
 function tests.test_no_delimiters()
     local result, err = yaml.parse("title: Test")
     assert.is_nil(result)
-    assert.match(err, "parsing error")
+    assert(string.find(err, "YAML frontmatter must start with '---'", 1, true) ~= nil)
+end
+
+-- Test missing closing delimiter
+function tests.test_missing_closing_delimiter()
+    local result, err = yaml.parse("---\ntitle: Test\n")
+    assert.is_nil(result)
+    assert(string.find(err, "missing closing", 1, true) ~= nil)
 end
 
 -- Test invalid input type
 function tests.test_invalid_input_type()
     local result, err = yaml.parse(123)
     assert.is_nil(result)
-    assert.match(err, "expected string")
+    assert(string.find(err, "expected string", 1, true) ~= nil)
+end
+
+-- Test no frontmatter delimiters
+function tests.test_no_delimiters()
+    local result, err = yaml.parse("title: Test")
+    assert.is_nil(result)
+    assert(err:find("YAML frontmatter must start with '---'") ~= nil)
+end
+
+-- Test invalid input type
+function tests.test_invalid_input_type()
+    local result, err = yaml.parse(123)
+    assert.is_nil(result)
+    assert(err:find("expected string") ~= nil)
 end
 
 return tests

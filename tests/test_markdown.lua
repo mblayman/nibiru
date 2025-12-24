@@ -214,7 +214,7 @@ title
 ]]
     local result, err = markdown.parse(content)
     assert.is_nil(result)
-    assert(err:find("parsing error") ~= nil)
+    assert(string.find(err, "invalid YAML syntax", 1, true) ~= nil)
 end
 
 -- Test frontmatter not at start
@@ -227,7 +227,7 @@ title: Test
 ]]
     local result, err = markdown.parse(content)
     assert.is_nil(result)
-    assert(err:find("parsing error") ~= nil)
+    assert(string.find(err, "YAML frontmatter must appear at the beginning of the document", 1, true) ~= nil)
 end
 
 return tests

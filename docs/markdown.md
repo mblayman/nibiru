@@ -122,7 +122,7 @@ if not result2 then error("Parse failed: " .. err2) end
 -- Invalid: Frontmatter not at start
 local result3, err3 = markdown.parse("# Content\n---\ntitle: Test\n---")
 if not result3 then
-    print("Expected error:", err3)  -- Will show parsing error
+    print("Expected error:", err3)  -- Will show "YAML frontmatter must appear at the beginning of the document"
 end
 ```
 
@@ -200,19 +200,30 @@ The parser returns `nil, error_message` for parsing failures, allowing applicati
 
 ### Frontmatter Errors
 
-- **Missing closing delimiter**: `"YAML frontmatter parsing error: missing closing '---'"`
-- **Invalid YAML syntax**: `"YAML frontmatter parsing error: invalid key-value pair"`
-- **Malformed structure**: `"YAML frontmatter parsing error: unexpected indentation"`
+- **Missing closing delimiter**: `"missing closing"`
+- **Invalid YAML syntax**: `"invalid YAML syntax at line X: 'problematic_line'. Expected key-value pairs in format 'key: value'"`
+- **Missing opening delimiter**: `"YAML frontmatter must start with '---'"`
+- **Frontmatter not at start**: `"YAML frontmatter must appear at the beginning of the document"`
 
 ```lua
 local result, err = markdown.parse("---\ntitle: Test\n")  -- Missing closing ---
 if not result then
-    print("Error:", err)  -- "YAML frontmatter parsing error: missing closing '---'"
+    print("Error:", err)  -- "missing closing"
 end
 
 local result, err = markdown.parse("---\ntitle\n---\n")   -- Invalid YAML
 if not result then
-    print("Error:", err)  -- "YAML frontmatter parsing error: invalid key-value pair"
+    print("Error:", err)  -- "invalid YAML syntax at line 1: 'title'. Expected key-value pairs in format 'key: value'"
+end
+
+local result, err = markdown.parse("title: Test\n")     -- Missing opening ---
+if not result then
+    print("Error:", err)  -- "YAML frontmatter must start with '---'"
+end
+
+local result, err = markdown.parse("# Header\n---\ntitle: Test\n---\n")  -- Frontmatter not at start
+if not result then
+    print("Error:", err)  -- "YAML frontmatter must appear at the beginning of the document"
 end
 ```
 
@@ -251,9 +262,9 @@ Parses a markdown string with optional YAML frontmatter.
 - **Error**: `nil, error_message` for parsing failures
 
 **Error Cases:**
-- Malformed YAML frontmatter: `"YAML frontmatter parsing error: <details>"`
-- Invalid input types: `"Invalid input: expected string, got <type>"`
-- Other parsing errors: `"Markdown parsing error: <details>"`
+- Malformed YAML frontmatter: `"invalid key-value pair syntax"`, `"missing closing"`, `"YAML frontmatter must start with '---'"`
+- Invalid input types: `"expected string"`
+- Frontmatter position errors: `"YAML frontmatter must appear at the beginning of the document"`
 
 ### Frontmatter Table Structure
 
