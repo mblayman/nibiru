@@ -1,10 +1,10 @@
 --- @module nibiru.yaml
 --- YAML parser for frontmatter with nested object support
---- Supports parsing YAML frontmatter strings with primitive types, arrays, and nested objects
+--- Supports parsing YAML frontmatter strings with primitive types, arrays, nested objects, and folded block scalars
 --- Used primarily by the markdown parser for frontmatter extraction
 
 --- @class yaml
---- YAML parser module for parsing YAML frontmatter strings
+--- YAML parser module for parsing YAML frontmatter strings with support for primitive types, arrays, nested objects, and folded block scalars
 local yaml = {}
 
 --- Parse a YAML frontmatter string into a Lua table
@@ -89,6 +89,47 @@ function yaml.parse(input)
                     -- Create nested table and push new context
                     current_context.table[key] = {}
                     table.insert(context_stack, {table = current_context.table[key], indent = indent})
+                elseif value:sub(1,1) == ">" then
+                    -- Handle folded block scalar
+                    local block_lines = {}
+                    local block_indent = indent + 2  -- Block content starts 2 spaces after key
+
+                    -- Skip the current line (key: >) and start from next line
+                    i = i + 1
+
+                    -- Collect block lines until we reach a line with <= key indentation
+                    while i <= #lines and lines[i] ~= "---" do
+                        local block_line = lines[i]
+                        if block_line:match("%S") then
+                            local line_indent = 0
+                            local line_rest = block_line
+                            while line_rest:sub(1, 1) == " " do
+                                line_indent = line_indent + 1
+                                line_rest = line_rest:sub(2)
+                            end
+
+                            -- Stop if we reach a line at the same or less indentation than the key
+                            if line_indent <= indent then
+                                i = i - 1  -- Back up so this line gets processed as a new key
+                                break
+                            end
+
+                            -- Only include lines that are part of the block (indented beyond block start)
+                            if line_indent >= block_indent then
+                                -- Remove the block indentation
+                                local content = block_line:sub(block_indent + 1)
+                                table.insert(block_lines, content)
+                            end
+                        else
+                            -- Empty line - still part of block
+                            table.insert(block_lines, "")
+                        end
+                        i = i + 1
+                    end
+
+                    -- Join folded block: lines with spaces, trailing newline
+                    local folded_value = table.concat(block_lines, " ") .. "\n"
+                    current_context.table[key] = folded_value
                 else
                     -- Set value in current context
                     current_context.table[key] = parse_value(value)

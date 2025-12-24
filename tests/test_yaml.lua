@@ -131,5 +131,21 @@ function tests.test_invalid_input_type()
     assert(err:find("expected string") ~= nil)
 end
 
-return tests
+-- Test folded block scalar (>)
+function tests.test_folded_block_scalar()
+    local result, err = yaml.parse([[
+---
+slug: hello-world
+description: >
+  This is a long string.
+  There are multiple lines.
+---
+]])
+    assert.is_nil(err)
+    assert.same(result, {
+        slug = "hello-world",
+        description = "This is a long string. There are multiple lines.\n",
+    })
+end
 
+return tests
