@@ -68,8 +68,9 @@ function yaml.parse(input)
 
                 local current_context = context_stack[#context_stack]
 
-                -- Check if this should create a nested object
+                -- Check if this should create a nested object or array
                 local should_nest = false
+                local should_array = false
                 if value == "" and i < #lines then
                     local next_line = lines[i + 1]
                     if next_line and next_line:match("%S") then
@@ -80,12 +81,57 @@ function yaml.parse(input)
                             next_rest = next_rest:sub(2)
                         end
                         if next_indent > indent then
-                            should_nest = true
+                            -- Check if it starts with "- " (array item)
+                            if next_rest:sub(1, 2) == "- " then
+                                should_array = true
+                            else
+                                should_nest = true
+                            end
                         end
                     end
                 end
 
-                if should_nest then
+                if should_array then
+                    -- Create array and parse array items
+                    local array_items = {}
+
+                    -- Skip the current line (key:) and start from next line
+                    i = i + 1
+
+                    -- Collect array items until we reach a line with <= key indentation
+                    while i <= #lines and lines[i] ~= "---" do
+                        local array_line = lines[i]
+                        if array_line:match("%S") then
+                            local line_indent = 0
+                            local line_rest = array_line
+                            while line_rest:sub(1, 1) == " " do
+                                line_indent = line_indent + 1
+                                line_rest = line_rest:sub(2)
+                            end
+
+                            -- Stop if we reach a line at the same or less indentation than the key
+                            if line_indent <= indent then
+                                i = i - 1  -- Back up so this line gets processed as a new key
+                                break
+                            end
+
+                            -- Include lines that start with "- " (array items)
+                            if line_rest:sub(1, 2) == "- " then
+                                -- Extract the item value after "- "
+                                local item_value = line_rest:sub(3)
+                                -- Trim whitespace and handle quotes
+                                item_value = item_value:gsub("^%s+", ""):gsub("%s+$", "")
+                                if item_value:sub(1,1) == '"' and item_value:sub(-1) == '"' then
+                                    item_value = item_value:sub(2, -2)
+                                end
+                                table.insert(array_items, item_value)
+                            end
+                        end
+                        i = i + 1
+                    end
+
+                    current_context.table[key] = array_items
+                elseif should_nest then
                     -- Create nested table and push new context
                     current_context.table[key] = {}
                     table.insert(context_stack, {table = current_context.table[key], indent = indent})

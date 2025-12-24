@@ -165,4 +165,21 @@ description: >-
     })
 end
 
+-- Test multi-line array syntax
+function tests.test_multi_line_array()
+    local result, err = yaml.parse([[
+---
+slug: hello-world
+categories:
+ - Personal
+ - Other
+---
+]])
+    assert.is_nil(err)
+    assert.same(result, {
+        slug = "hello-world",
+        categories = { "Personal", "Other" },
+    })
+end
+
 return tests
