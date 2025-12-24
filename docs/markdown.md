@@ -80,7 +80,7 @@ The parser supports primitive YAML types:
 - **Strings**: `"quoted strings"` or `unquoted strings`
 - **Numbers**: `42`, `3.14`
 - **Booleans**: `true`, `false`
-- **Arrays**: `[item1, item2, item3]`
+- **Arrays**: `[item1, item2, item3]` or multi-line with `- `
 - **Objects**: Nested key-value structures
 - **Folded Block Scalars**: Multi-line strings using `>` or `>-` (line breaks converted to spaces, with `>-` stripping trailing newlines)
 
@@ -93,6 +93,11 @@ enabled: true
 
 # Arrays
 tags: [lua, web, markdown]
+
+# Multi-line arrays
+categories:
+ - Personal
+ - Work
 
 # Nested objects
 author:

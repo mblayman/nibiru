@@ -1,10 +1,10 @@
 --- @module nibiru.yaml
 --- YAML parser for frontmatter with nested object support
---- Supports parsing YAML frontmatter strings with primitive types, arrays, nested objects, and folded block scalars (with chomp support)
+--- Supports parsing YAML frontmatter strings with primitive types, arrays (inline and multi-line), nested objects, and folded block scalars (with chomp support)
 --- Used primarily by the markdown parser for frontmatter extraction
 
 --- @class yaml
---- YAML parser module for parsing YAML frontmatter strings with support for primitive types, arrays, nested objects, and folded block scalars (with chomp support)
+--- YAML parser module for parsing YAML frontmatter strings with support for primitive types, arrays (inline and multi-line), nested objects, and folded block scalars (with chomp support)
 local yaml = {}
 
 --- Parse a YAML frontmatter string into a Lua table
