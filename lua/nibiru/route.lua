@@ -61,6 +61,7 @@ end
 --- @field path_pattern string The string pattern corresponding to the path
 --- @field converters table Converters for parameters in the path
 --- @field responder function The responder that will handle the route
+--- @field name string? Optional unique name for the route
 --- @field methods Method[] The allowed HTTP methods
 local Route = {
     NO_MATCH = NO_MATCH,
@@ -73,13 +74,15 @@ Route.__index = Route
 --- @param _ any
 --- @param path string The path to reach the route
 --- @param responder function The responder that will handle the route
---- @param methods Method[] The allowed HTTP methods
+--- @param name string? Optional unique name for the route
+--- @param methods Method[]? The allowed HTTP methods
 --- @return Route
-local function _init(_, path, responder, methods)
+local function _init(_, path, responder, name, methods)
     local self = setmetatable({}, Route)
     self.path = path
     self.path_pattern, self.converters = make_path_matcher(path)
     self.responder = responder
+    self.name = name
 
     -- Use a lookup table for allowed methods for faster checking at runtime.
     if methods then

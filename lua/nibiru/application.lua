@@ -8,6 +8,7 @@ local method_not_allowed = http.method_not_allowed()
 
 --- @class Application
 --- @field routes Route[]
+--- @field routes_by_name table<string, Route> Lookup table for routes by name
 --- @field config table Configuration loaded from config.lua
 --- @field app Application An alias for the application
 local Application = {}
@@ -21,6 +22,17 @@ Application.__index = Application
 local function _init(_, routes, config_path)
     local self = setmetatable({}, Application)
     self.routes = routes or {}
+    self.routes_by_name = {}
+
+    -- Process routes and build name lookup table
+    for _, route in ipairs(self.routes) do
+        if route.name then
+            if self.routes_by_name[route.name] then
+                error("Duplicate route name: " .. route.name)
+            end
+            self.routes_by_name[route.name] = route
+        end
+    end
 
     -- Determine config path if not provided
     if not config_path then

@@ -74,4 +74,33 @@ function tests.test_config_and_template_loading()
     assert.equal("tests/data/test_templates", app.config.templates.directory)
 end
 
+-- The app maintains a lookup table of routes by name.
+function tests.test_route_name_lookup()
+    Template.clear_templates()
+    local route_a = Route("/users", function() end, "users_list")
+    local route_b = Route("/posts", function() end, "posts_list")
+    local route_c = Route("/admin", function() end) -- no name
+    local routes = { route_a, route_b, route_c }
+    local app = Application(routes, "tests/data/config.lua")
+
+    assert.equal(route_a, app.routes_by_name["users_list"])
+    assert.equal(route_b, app.routes_by_name["posts_list"])
+    assert.is_nil(app.routes_by_name["admin"])
+end
+
+-- The app errors on duplicate route names.
+function tests.test_duplicate_route_names()
+    Template.clear_templates()
+    local route_a = Route("/users", function() end, "duplicate_name")
+    local route_b = Route("/posts", function() end, "duplicate_name")
+    local routes = { route_a, route_b }
+
+    local status, msg = pcall(function()
+        Application(routes, "tests/data/config.lua")
+    end)
+
+    assert.is_false(status)
+    assert.is_not_nil(string.find(msg or "", "Duplicate route name: duplicate_name", 1, true))
+end
+
 return tests

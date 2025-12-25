@@ -8,6 +8,7 @@ Routes define how incoming HTTP requests are handled. Each route consists of:
 - A URL path pattern (with optional parameters)
 - An HTTP method (or methods)
 - A responder function that processes the request
+- An optional unique name for identification and lookup
 
 ## Basic Route Syntax
 
@@ -20,6 +21,14 @@ local http = require("nibiru.http")
 local route = Route("/hello", function(request)
     return http.Response(200, "Hello World!")
 end)
+```
+
+You can optionally provide a unique name for the route:
+
+```lua
+local route = Route("/hello", function(request)
+    return http.Response(200, "Hello World!")
+end, "hello_route")
 ```
 
 ## Path Patterns
@@ -60,10 +69,29 @@ Available converters:
 By default, routes accept GET requests. Specify other methods explicitly:
 
 ```lua
-Route("/users", function(request) ... end, {"GET", "POST"})
+Route("/users", function(request) ... end, nil, {"GET", "POST"})
+```
+
+Or with a route name:
+
+```lua
+Route("/users", function(request) ... end, "users_route", {"GET", "POST"})
 ```
 
 Supported methods: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS`
+
+## Route Names
+
+Routes can optionally be given unique names for identification:
+
+```lua
+Route("/users", function(request) ... end, "users_index")
+Route("/users/{id:integer}", function(request, id) ... end, "users_show")
+```
+
+**Important:** Route names must be unique within an application. The Application will throw an error if duplicate names are detected during initialization.
+
+Routes without names function identically but are not included in the application's route lookup table.
 
 ## Responder Functions
 
@@ -119,16 +147,21 @@ end)
 
 ## API Reference
 
-### Route(path, responder, methods)
+### Route(path, responder, name, methods)
 
 Creates a new route.
 
 **Parameters:**
 - `path` (string): URL path pattern with optional parameters
 - `responder` (function): Function that takes `(request, ...params)` and returns a response
+- `name` (string, optional): Unique name for the route. Must be unique across all routes in an application
 - `methods` (table, optional): Array of allowed HTTP methods. Defaults to `{"GET"}`
 
 **Returns:** Route instance
+
+**Notes:**
+- Route names must be unique within an application. Attempting to create an application with duplicate route names will result in an error.
+- Routes without names are not included in the application's route lookup table.
 
 ### Route:matches(method, path)
 

@@ -7,11 +7,12 @@ local tests = {}
 function tests.test_constructor()
     local path = "/hello"
     local responder = function() end
-    local route = Route(path, responder, { "GET", "POST" })
+    local route = Route(path, responder, "hello_route", { "GET", "POST" })
 
     assert.equal(Route, getmetatable(route))
     assert.equal(path, route.path)
     assert.equal(responder, route.responder)
+    assert.equal("hello_route", route.name)
     assert.same({ GET = true, POST = true }, route.methods)
 end
 
@@ -24,10 +25,20 @@ function tests.test_optional_methods()
     assert.same({ GET = true }, route.methods)
 end
 
+-- Route name is optional.
+function tests.test_optional_name()
+    local path = "/hello"
+    local responder = function() end
+    local route = Route(path, responder, nil, { "GET", "POST" })
+
+    assert.is_nil(route.name)
+    assert.same({ GET = true, POST = true }, route.methods)
+end
+
 -- Only allowed methods match.
 function tests.test_allowed_methods()
     local methods = { "GET", "POST" }
-    local route = Route("/", function() end, methods)
+    local route = Route("/", function() end, nil, methods)
 
     assert.equal(Route.NOT_ALLOWED, route:matches("DELETE", "/"))
     assert.equal(Route.MATCH, route:matches("GET", "/"))
