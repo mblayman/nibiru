@@ -1834,10 +1834,7 @@ for name, filter_func in pairs(builtin_filters) do
     Template.register_filter(name, filter_func)
 end
 
--- Register a simple test function
-Template.register_function("concat", function(context, a, b)
-    return tostring(a or "") .. tostring(b or "")
-end)
+
 
 -- Make the Template constructor callable: Template(template_str) returns the render function directly
 setmetatable(Template, {
