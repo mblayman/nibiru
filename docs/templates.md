@@ -513,6 +513,64 @@ Invalid filter usage results in clear error messages:
 - No performance penalty for unused filters
 - Custom filters should be efficient to avoid template rendering bottlenecks
 
+## Built-in Functions
+
+Nibiru templates support built-in functions that provide additional functionality. Functions are called with parentheses and can accept arguments.
+
+### `route(route_name, ...params)`
+
+Generates a URL for a named route by substituting parameters into the route pattern. This performs reverse route matching - it takes a route name and the required parameters, then constructs the corresponding URL path.
+
+- **Parameters**:
+  - `route_name` (string): The name of the route as defined in your route configuration
+  - `...params`: Variable number of parameters to substitute into the route pattern
+
+- **Returns**: A string containing the generated URL path
+
+- **Example**:
+  ```lua
+  -- Assuming a route defined as:
+  -- Route("/blog/{slug:string}", blog_responders.entry, "blog_entry")
+
+  {{ route("blog_entry", "hello-world") }}  -- "/blog/hello-world"
+  {{ route("blog_entry", post.slug) }}      -- "/blog/my-post-title"
+  ```
+
+Route parameters must be provided in the same order they appear in the route pattern.
+
+### Function Arguments
+
+Functions can accept literals, variables, or expressions as arguments:
+
+```lua
+{{ route("user_profile", user.id) }}
+```
+
+### Using Functions in Component Attributes
+
+Functions work in component attributes:
+
+```lua
+Template.component("BlogLink", [[
+<a href="{{ route('blog_entry', slug) }}" class="blog-link">
+  {{ title }}
+</a>
+]])
+```
+
+### Error Handling
+
+Invalid function usage results in clear error messages:
+
+- **Unknown functions**: `"Unknown function 'badfunc'"`
+- **Wrong arguments**: `"Function 'route' expects at least 1 argument, got 0"`
+
+```lua
+-- These will cause errors:
+{{ unknown_function() }}
+{{ route() }}                    -- missing required route name
+```
+
 ## Component System
 
 The template system is built around reusable components that can be composed together. Components are registered globally and can reference each other without explicit imports.

@@ -25,6 +25,10 @@ local component_registry = {}
 ---@type table<string, function>
 local filter_registry = {}
 
+--- Function registry: maps function names to their functions
+---@type table<string, function>
+local function_registry = {}
+
 --- Template registry: maps template names to their template strings
 ---@type table<string, string>
 local template_registry = {}
@@ -73,7 +77,23 @@ function Template.clear_filters()
     filter_registry = {}
 end
 
+--- Register a function.
+---@param name string Function name
+---@param func function Function
+function Template.register_function(name, func)
+    if function_registry[name] then
+        error("Function '" .. name .. "' is already registered")
+    end
+    if type(func) ~= "function" then
+        error("Function '" .. name .. "' must be a function")
+    end
+    function_registry[name] = func
+end
 
+--- Clear all registered functions (for testing).
+function Template.clear_functions()
+    function_registry = {}
+end
 
 --- Render a registered template and return an HTTP response.
 ---@param template_name string Name of the registered template
@@ -364,6 +384,81 @@ local function compile_component(component_template, attributes)
                         filter_code
                     )
                 )
+            elseif #expr_tokens >= 3 and expr_tokens[1].type == "IDENTIFIER" and expr_tokens[2].type == "PUNCTUATION" and expr_tokens[2].value == "(" then
+                -- Check if this is a function call
+                local func_name = expr_tokens[1].value
+                if function_registry[func_name] then
+                    -- Parse function arguments
+                    local args = {}
+                    local i = 3  -- Skip function name and opening paren
+                    local current_arg = {}
+                    local paren_depth = 1
+
+                    while i <= #expr_tokens and paren_depth > 0 do
+                        local token = expr_tokens[i]
+                        if token.type == "PUNCTUATION" and token.value == "(" then
+                            paren_depth = paren_depth + 1
+                            table.insert(current_arg, token.value)
+                        elseif token.type == "PUNCTUATION" and token.value == ")" then
+                            paren_depth = paren_depth - 1
+                            if paren_depth > 0 then
+                                table.insert(current_arg, token.value)
+                            end
+                        elseif token.type == "PUNCTUATION" and token.value == "," and paren_depth == 1 then
+                            -- End of current argument
+                            if #current_arg > 0 then
+                                table.insert(args, table.concat(current_arg))
+                                current_arg = {}
+                            end
+                        else
+                            -- Add token to current argument
+                            if token.type == "IDENTIFIER" then
+                                -- Check if this is an attribute (for component context)
+                                if attributes and attributes[token.value] then
+                                    -- Attributes may be strings or Lua code marked with __CODE__
+                                    local attr_value = attributes[token.value]
+                                    if
+                                        type(attr_value) == "string"
+                                        and attr_value:sub(1, 8) == "__CODE__"
+                                    then
+                                        -- This is Lua code, insert it directly
+                                        table.insert(current_arg, "(" .. attr_value:sub(9) .. ")")
+                                    else
+                                        -- String literal
+                                        table.insert(current_arg, escape_lua_string(attr_value))
+                                    end
+                                else
+                                    table.insert(current_arg, "context." .. token.value)
+                                end
+                            elseif token.type == "LITERAL" then
+                                if type(token.value) == "string" then
+                                    table.insert(current_arg, string.format("%q", token.value))
+                                else
+                                    table.insert(current_arg, tostring(token.value))
+                                end
+                            else
+                                table.insert(current_arg, token.value or "")
+                            end
+                        end
+                        i = i + 1
+                    end
+
+                    -- Add the last argument if any
+                    if #current_arg > 0 then
+                        table.insert(args, table.concat(current_arg))
+                    end
+
+                    -- Generate function call code
+                    local args_str = #args > 0 and ", " .. table.concat(args, ", ") or ""
+                    local func_call = string.format("function_registry[%q](context%s)", func_name, args_str)
+                    table.insert(
+                        chunks,
+                        string.format('tostring(%s or "")', func_call)
+                    )
+                else
+                    -- Not a registered function, this is an error
+                    error("Unknown function '" .. func_name .. "'")
+                end
             elseif #expr_tokens == 1 and expr_tokens[1].type == "IDENTIFIER" then
                 local var_name = expr_tokens[1].value
                 -- Check if this is an attribute, otherwise use normal context access
@@ -997,7 +1092,7 @@ local function compile(template_str)
     end
 
     -- Start building the function body
-    table.insert(body_parts, "local context, filter_registry = ...")
+    table.insert(body_parts, "local context, filter_registry, function_registry = ...")
     table.insert(body_parts, "local parts = {}")
     table.insert(body_parts, "local function is_truthy(val)")
     table.insert(
@@ -1048,6 +1143,65 @@ local function compile(template_str)
                         filter_code
                     )
                 )
+            elseif #expr_tokens >= 3 and expr_tokens[1].type == "IDENTIFIER" and expr_tokens[2].type == "PUNCTUATION" and expr_tokens[2].value == "(" then
+                -- Check if this is a function call
+                local func_name = expr_tokens[1].value
+                if function_registry[func_name] then
+                    -- Parse function arguments
+                    local args = {}
+                    local i = 3  -- Skip function name and opening paren
+                    local current_arg = {}
+                    local paren_depth = 1
+
+                    while i <= #expr_tokens and paren_depth > 0 do
+                        local token = expr_tokens[i]
+                        if token.type == "PUNCTUATION" and token.value == "(" then
+                            paren_depth = paren_depth + 1
+                            table.insert(current_arg, token.value)
+                        elseif token.type == "PUNCTUATION" and token.value == ")" then
+                            paren_depth = paren_depth - 1
+                            if paren_depth > 0 then
+                                table.insert(current_arg, token.value)
+                            end
+                        elseif token.type == "PUNCTUATION" and token.value == "," and paren_depth == 1 then
+                            -- End of current argument
+                            if #current_arg > 0 then
+                                table.insert(args, table.concat(current_arg))
+                                current_arg = {}
+                            end
+                        else
+                            -- Add token to current argument
+                            if token.type == "IDENTIFIER" then
+                                table.insert(current_arg, "context." .. token.value)
+                            elseif token.type == "LITERAL" then
+                                if type(token.value) == "string" then
+                                    table.insert(current_arg, string.format("%q", token.value))
+                                else
+                                    table.insert(current_arg, tostring(token.value))
+                                end
+                            else
+                                table.insert(current_arg, token.value or "")
+                            end
+                        end
+                        i = i + 1
+                    end
+
+                    -- Add the last argument if any
+                    if #current_arg > 0 then
+                        table.insert(args, table.concat(current_arg))
+                    end
+
+                    -- Generate function call code
+                    local args_str = #args > 0 and ", " .. table.concat(args, ", ") or ""
+                    local func_call = string.format("function_registry[%q](context%s)", func_name, args_str)
+                    table.insert(
+                        body_parts,
+                        string.format('table.insert(parts, tostring(%s or ""))', func_call)
+                    )
+                else
+                    -- Not a registered function, this is an error
+                    error("Unknown function '" .. func_name .. "'")
+                end
             elseif #expr_tokens == 1 and expr_tokens[1].type == "IDENTIFIER" then
                 -- Handle simple expressions (backward compatibility)
                 local var_name = expr_tokens[1].value
@@ -1645,7 +1799,7 @@ local function compile(template_str)
         render = function(context)
             -- Wrap context in a table if not already
             local ctx = type(context) == "table" and context or {}
-            return chunk(ctx, filter_registry)
+            return chunk(ctx, filter_registry, function_registry)
         end,
         code = formatted_body,
     }
@@ -1679,6 +1833,11 @@ end
 for name, filter_func in pairs(builtin_filters) do
     Template.register_filter(name, filter_func)
 end
+
+-- Register a simple test function
+Template.register_function("concat", function(context, a, b)
+    return tostring(a or "") .. tostring(b or "")
+end)
 
 -- Make the Template constructor callable: Template(template_str) returns the render function directly
 setmetatable(Template, {
