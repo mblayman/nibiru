@@ -103,4 +103,89 @@ function tests.test_duplicate_route_names()
     assert.is_not_nil(string.find(msg or "", "Duplicate route name: duplicate_name", 1, true))
 end
 
+-- The app can generate URLs for named routes.
+function tests.test_url_for_basic()
+    Template.clear_templates()
+    local route_a = Route("/users/{id:integer}", function() end, "user_detail")
+    local route_b = Route("/posts/{year:integer}/{slug:string}", function() end, "post_detail")
+    local route_c = Route("/home", function() end, "home")
+    local routes = { route_a, route_b, route_c }
+    local app = Application(routes, "tests/data/config.lua")
+
+    assert.equal("/users/123", app:url_for("user_detail", 123))
+    assert.equal("/posts/2024/hello-world", app:url_for("post_detail", 2024, "hello-world"))
+    assert.equal("/home", app:url_for("home"))
+end
+
+-- The app errors when route name is unknown.
+function tests.test_url_for_unknown_route()
+    Template.clear_templates()
+    local routes = { Route("/test", function() end, "known_route") }
+    local app = Application(routes, "tests/data/config.lua")
+
+    local status, msg = pcall(function()
+        app:url_for("unknown_route")
+    end)
+
+    assert.is_false(status)
+    assert.is_not_nil(string.find(msg or "", "Unknown route name: unknown_route", 1, true))
+end
+
+-- The app passes through parameter validation errors from routes.
+function tests.test_url_for_parameter_validation()
+    Template.clear_templates()
+    local route = Route("/users/{id:integer}", function() end, "user_detail")
+    local routes = { route }
+    local app = Application(routes, "tests/data/config.lua")
+
+    -- Wrong number of parameters
+    local status1, msg1 = pcall(function()
+        app:url_for("user_detail")
+    end)
+    assert.is_false(status1)
+    assert.is_not_nil(string.find(msg1 or "", "Route requires 1 parameters, got 0", 1, true))
+
+    -- Too many parameters
+    local status2, msg2 = pcall(function()
+        app:url_for("user_detail", 123, "extra")
+    end)
+    assert.is_false(status2)
+    assert.is_not_nil(string.find(msg2 or "", "Route requires 1 parameters, got 2", 1, true))
+
+    -- Nil parameter
+    local status3, msg3 = pcall(function()
+        app:url_for("user_detail", nil)
+    end)
+    assert.is_false(status3)
+    assert.is_not_nil(string.find(msg3 or "", "Parameter 1 cannot be nil", 1, true))
+
+    -- Invalid integer
+    local status4, msg4 = pcall(function()
+        app:url_for("user_detail", "not-a-number")
+    end)
+    assert.is_false(status4)
+    assert.is_not_nil(string.find(msg4 or "", "Parameter 1 must be a valid integer", 1, true))
+end
+
+-- The app handles routes with string parameters.
+function tests.test_url_for_string_parameters()
+    Template.clear_templates()
+    local route = Route("/posts/{slug:string}", function() end, "post_detail")
+    local routes = { route }
+    local app = Application(routes, "tests/data/config.lua")
+
+    assert.equal("/posts/my-article", app:url_for("post_detail", "my-article"))
+    assert.equal("/posts/another_post_123", app:url_for("post_detail", "another_post_123"))
+end
+
+-- The app handles routes with multiple parameters.
+function tests.test_url_for_multiple_parameters()
+    Template.clear_templates()
+    local route = Route("/blog/{year:integer}/{month:integer}/{slug:string}", function() end, "blog_post")
+    local routes = { route }
+    local app = Application(routes, "tests/data/config.lua")
+
+    assert.equal("/blog/2024/12/my-article", app:url_for("blog_post", 2024, 12, "my-article"))
+end
+
 return tests

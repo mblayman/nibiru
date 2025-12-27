@@ -100,4 +100,18 @@ function Application.find_route(self, method, path)
     return Route.NO_MATCH, nil
 end
 
+--- Generate a URL by looking up a named route and delegating to its url_for method.
+--- @param self Application
+--- @param route_name string The name of the route to generate URL for
+--- @param ... any Parameters to pass to the route's url_for method
+--- @return string The generated URL path
+function Application.url_for(self, route_name, ...)
+    local route = self.routes_by_name[route_name]
+    if not route then
+        error(string.format("Unknown route name: %s", route_name))
+    end
+
+    return route:url_for(...)
+end
+
 return Application
