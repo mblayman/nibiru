@@ -47,7 +47,7 @@ local function pretty_print(t)
     local output = {}
     pp(t, "", {}, output)
     local result = table.concat(output)
-    io.write(result)
+    io.stdout:write(result)
     return result
 end
 
