@@ -343,4 +343,57 @@ function tests.test_render_template_not_found()
     assert.match("Template 'nonexistent.html' not found", err)
 end
 
+-- Test: Template inheritance with for loop and route function call
+function tests.test_template_inheritance_with_for_loop_and_route()
+    local Application = require("nibiru.application")
+    local Route = require("nibiru.route")
+
+    Template.clear_templates()
+    Template.clear_application()
+
+    -- Create a real application with a route
+    local routes = {
+        Route("/blog/{slug:string}", function(request, slug)
+            return { status_code = 200, content = "Blog post: " .. slug }
+        end, "blog_entry")
+    }
+    local app = Application(routes, "tests/data/config.lua")
+
+    -- Clear templates again after application creation (which may register templates)
+    Template.clear_templates()
+
+    -- Register base template
+    Template.register("base.html", [[
+<!DOCTYPE html>
+<html>
+<head><title>Base</title></head>
+<body>{% block content %}{% endblock %}</body>
+</html>]])
+
+    -- Register child template that extends base and uses for loop with route
+    Template.register("index.html", [[
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>Matt Layman's website index</h1>
+  {% for page in pages %}
+    <p><a href="{{ route("blog_entry", page.slug ) }}">{{ page.title }}</a></p>
+  {% endfor %}
+{% endblock %}]])
+
+    -- Create context with pages data
+    local context = {
+        pages = {
+            { title = "First Post", slug = "first-post" },
+            { title = "Second Post", slug = "second-post" }
+        }
+    }
+
+    -- This should reproduce the error: attempt to index a nil value (field 'context')
+    local response = Template.render("index.html", context)
+
+    assert.equal(200, response.status_code)
+    assert.equal("text/html", response.content_type)
+end
+
 return tests

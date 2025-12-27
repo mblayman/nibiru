@@ -14,7 +14,7 @@ local Template_mt = {
     __call = function(self, context)
         return self.render(context)
     end,
-    __index = Template
+    __index = Template,
 }
 
 --- Component registry: maps component names to their template strings
@@ -411,13 +411,18 @@ local function compile_component(component_template, attributes)
                         filter_code
                     )
                 )
-            elseif #expr_tokens >= 3 and expr_tokens[1].type == "IDENTIFIER" and expr_tokens[2].type == "PUNCTUATION" and expr_tokens[2].value == "(" then
+            elseif
+                #expr_tokens >= 3
+                and expr_tokens[1].type == "IDENTIFIER"
+                and expr_tokens[2].type == "PUNCTUATION"
+                and expr_tokens[2].value == "("
+            then
                 -- Check if this is a function call
                 local func_name = expr_tokens[1].value
                 if function_registry[func_name] then
                     -- Parse function arguments
                     local args = {}
-                    local i = 3  -- Skip function name and opening paren
+                    local i = 3 -- Skip function name and opening paren
                     local current_arg = {}
                     local paren_depth = 1
 
@@ -431,7 +436,11 @@ local function compile_component(component_template, attributes)
                             if paren_depth > 0 then
                                 table.insert(current_arg, token.value)
                             end
-                        elseif token.type == "PUNCTUATION" and token.value == "," and paren_depth == 1 then
+                        elseif
+                            token.type == "PUNCTUATION"
+                            and token.value == ","
+                            and paren_depth == 1
+                        then
                             -- End of current argument
                             if #current_arg > 0 then
                                 table.insert(args, table.concat(current_arg))
@@ -449,17 +458,26 @@ local function compile_component(component_template, attributes)
                                         and attr_value:sub(1, 8) == "__CODE__"
                                     then
                                         -- This is Lua code, insert it directly
-                                        table.insert(current_arg, "(" .. attr_value:sub(9) .. ")")
+                                        table.insert(
+                                            current_arg,
+                                            "(" .. attr_value:sub(9) .. ")"
+                                        )
                                     else
                                         -- String literal
-                                        table.insert(current_arg, escape_lua_string(attr_value))
+                                        table.insert(
+                                            current_arg,
+                                            escape_lua_string(attr_value)
+                                        )
                                     end
                                 else
                                     table.insert(current_arg, "context." .. token.value)
                                 end
                             elseif token.type == "LITERAL" then
                                 if type(token.value) == "string" then
-                                    table.insert(current_arg, string.format("%q", token.value))
+                                    table.insert(
+                                        current_arg,
+                                        string.format("%q", token.value)
+                                    )
                                 else
                                     table.insert(current_arg, tostring(token.value))
                                 end
@@ -476,12 +494,14 @@ local function compile_component(component_template, attributes)
                     end
 
                     -- Generate function call code
-                    local args_str = #args > 0 and ", " .. table.concat(args, ", ") or ""
-                    local func_call = string.format("function_registry[%q](context%s)", func_name, args_str)
-                    table.insert(
-                        chunks,
-                        string.format('tostring(%s or "")', func_call)
+                    local args_str = #args > 0 and ", " .. table.concat(args, ", ")
+                        or ""
+                    local func_call = string.format(
+                        "function_registry[%q](context%s)",
+                        func_name,
+                        args_str
                     )
+                    table.insert(chunks, string.format('tostring(%s or "")', func_call))
                 else
                     -- Not a registered function, this is an error
                     error("Unknown function '" .. func_name .. "'")
@@ -1170,13 +1190,18 @@ local function compile(template_str)
                         filter_code
                     )
                 )
-            elseif #expr_tokens >= 3 and expr_tokens[1].type == "IDENTIFIER" and expr_tokens[2].type == "PUNCTUATION" and expr_tokens[2].value == "(" then
+            elseif
+                #expr_tokens >= 3
+                and expr_tokens[1].type == "IDENTIFIER"
+                and expr_tokens[2].type == "PUNCTUATION"
+                and expr_tokens[2].value == "("
+            then
                 -- Check if this is a function call
                 local func_name = expr_tokens[1].value
                 if function_registry[func_name] then
                     -- Parse function arguments
                     local args = {}
-                    local i = 3  -- Skip function name and opening paren
+                    local i = 3 -- Skip function name and opening paren
                     local current_arg = {}
                     local paren_depth = 1
 
@@ -1190,25 +1215,98 @@ local function compile(template_str)
                             if paren_depth > 0 then
                                 table.insert(current_arg, token.value)
                             end
-                        elseif token.type == "PUNCTUATION" and token.value == "," and paren_depth == 1 then
+                        elseif
+                            token.type == "PUNCTUATION"
+                            and token.value == ","
+                            and paren_depth == 1
+                        then
                             -- End of current argument
                             if #current_arg > 0 then
                                 table.insert(args, table.concat(current_arg))
                                 current_arg = {}
                             end
                         else
-                            -- Add token to current argument
-                            if token.type == "IDENTIFIER" then
-                                table.insert(current_arg, "context." .. token.value)
-                            elseif token.type == "LITERAL" then
-                                if type(token.value) == "string" then
-                                    table.insert(current_arg, string.format("%q", token.value))
-                                else
-                                    table.insert(current_arg, tostring(token.value))
+                            -- Collect tokens for this argument and parse as expression
+                            local arg_tokens = {}
+                            local j = i
+                            local arg_paren_depth = 0
+                            while j <= #expr_tokens do
+                                local arg_token = expr_tokens[j]
+                                if
+                                    arg_token.type == "PUNCTUATION"
+                                    and arg_token.value == "("
+                                then
+                                    arg_paren_depth = arg_paren_depth + 1
+                                elseif
+                                    arg_token.type == "PUNCTUATION"
+                                    and arg_token.value == ")"
+                                then
+                                    arg_paren_depth = arg_paren_depth - 1
+                                    if arg_paren_depth < 0 then
+                                        break
+                                    end
+                                elseif
+                                    arg_token.type == "PUNCTUATION"
+                                    and arg_token.value == ","
+                                    and arg_paren_depth == 0
+                                then
+                                    break
                                 end
-                            else
-                                table.insert(current_arg, token.value or "")
+                                table.insert(arg_tokens, arg_token)
+                                j = j + 1
                             end
+
+                            -- Parse the argument tokens as an expression
+                            local arg_expr_parts = {}
+                            local arg_prev_token = nil
+                            for _, arg_token in ipairs(arg_tokens) do
+                                if
+                                    #arg_expr_parts > 0
+                                    and not (arg_token.type == "PUNCTUATION" and arg_token.value == ".")
+                                    and not (
+                                        arg_prev_token
+                                        and arg_prev_token.type == "PUNCTUATION"
+                                        and arg_prev_token.value == "."
+                                    )
+                                then
+                                    arg_expr_parts[#arg_expr_parts] = arg_expr_parts[#arg_expr_parts]
+                                        .. " "
+                                end
+
+                                if arg_token.type == "IDENTIFIER" then
+                                    -- Don't add "context." prefix if this identifier follows a dot
+                                    if
+                                        arg_prev_token
+                                        and arg_prev_token.type == "PUNCTUATION"
+                                        and arg_prev_token.value == "."
+                                    then
+                                        table.insert(arg_expr_parts, arg_token.value)
+                                    else
+                                        table.insert(
+                                            arg_expr_parts,
+                                            "context." .. arg_token.value
+                                        )
+                                    end
+                                elseif arg_token.type == "LITERAL" then
+                                    if type(arg_token.value) == "string" then
+                                        table.insert(
+                                            arg_expr_parts,
+                                            string.format("%q", arg_token.value)
+                                        )
+                                    else
+                                        table.insert(
+                                            arg_expr_parts,
+                                            tostring(arg_token.value)
+                                        )
+                                    end
+                                else
+                                    table.insert(arg_expr_parts, arg_token.value or "")
+                                end
+                                arg_prev_token = arg_token
+                            end
+
+                            table.insert(args, table.concat(arg_expr_parts))
+                            i = j - 1 -- Skip the tokens we already processed
                         end
                         i = i + 1
                     end
@@ -1219,11 +1317,19 @@ local function compile(template_str)
                     end
 
                     -- Generate function call code
-                    local args_str = #args > 0 and ", " .. table.concat(args, ", ") or ""
-                    local func_call = string.format("function_registry[%q](context%s)", func_name, args_str)
+                    local args_str = #args > 0 and ", " .. table.concat(args, ", ")
+                        or ""
+                    local func_call = string.format(
+                        "function_registry[%q](context%s)",
+                        func_name,
+                        args_str
+                    )
                     table.insert(
                         body_parts,
-                        string.format('table.insert(parts, tostring(%s or ""))', func_call)
+                        string.format(
+                            'table.insert(parts, tostring(%s or ""))',
+                            func_call
+                        )
                     )
                 else
                     -- Not a registered function, this is an error
@@ -1864,12 +1970,12 @@ end
 -- Register built-in functions
 Template.register_function("route", function(context, route_name, ...)
     if not application_instance then
-        error("No application instance available. Make sure to create an Application with Application() before using route() in templates.")
+        error(
+            "No application instance available. Make sure to create an Application with Application() before using route() in templates."
+        )
     end
     return application_instance:url_for(route_name, ...)
 end, true)
-
-
 
 -- Make the Template constructor callable: Template(template_str) returns the render function directly
 setmetatable(Template, {
