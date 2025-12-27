@@ -2,6 +2,7 @@ local http = require("nibiru.http")
 local Route = require("nibiru.route")
 local Config = require("nibiru.config")
 local TemplateLoader = require("nibiru.loader")
+local Template = require("nibiru.template")
 
 local not_found = http.not_found()
 local method_not_allowed = http.method_not_allowed()
@@ -55,6 +56,9 @@ local function _init(_, routes, config_path)
     -- By keeping a reference to itself as `app`, a real project can simplify
     -- how it provides the nibiru server with the application instance.
     self.app = self
+
+    -- Set this application instance for template route function
+    Template.set_application(self)
 
     return self
 end

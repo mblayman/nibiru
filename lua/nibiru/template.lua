@@ -29,6 +29,10 @@ local filter_registry = {}
 ---@type table<string, function>
 local function_registry = {}
 
+--- Built-in functions that should not be cleared during testing
+---@type table<string, function>
+local builtin_functions = {}
+
 --- Template registry: maps template names to their template strings
 ---@type table<string, string>
 local template_registry = {}
@@ -40,6 +44,10 @@ local compiled_registry = {}
 --- Set of template names currently being processed (to detect cycles)
 ---@type table<string, boolean>
 local processing_templates = {}
+
+--- Application instance for route function
+---@type table|nil
+local application_instance = nil
 
 --- Register a reusable component template.
 ---@param name string Component name (should start with capital letter)
@@ -80,7 +88,8 @@ end
 --- Register a function.
 ---@param name string Function name
 ---@param func function Function
-function Template.register_function(name, func)
+---@param builtin boolean? Whether this is a built-in function that shouldn't be cleared
+function Template.register_function(name, func, builtin)
     if function_registry[name] then
         error("Function '" .. name .. "' is already registered")
     end
@@ -88,11 +97,29 @@ function Template.register_function(name, func)
         error("Function '" .. name .. "' must be a function")
     end
     function_registry[name] = func
+    if builtin then
+        builtin_functions[name] = func
+    end
 end
 
---- Clear all registered functions (for testing).
+--- Clear all registered functions (for testing). Preserves built-in functions.
 function Template.clear_functions()
     function_registry = {}
+    -- Restore built-in functions
+    for name, func in pairs(builtin_functions) do
+        function_registry[name] = func
+    end
+end
+
+--- Set the application instance for route function access.
+---@param app table Application instance
+function Template.set_application(app)
+    application_instance = app
+end
+
+--- Clear the application instance (for testing).
+function Template.clear_application()
+    application_instance = nil
 end
 
 --- Render a registered template and return an HTTP response.
@@ -1833,6 +1860,14 @@ end
 for name, filter_func in pairs(builtin_filters) do
     Template.register_filter(name, filter_func)
 end
+
+-- Register built-in functions
+Template.register_function("route", function(context, route_name, ...)
+    if not application_instance then
+        error("No application instance available. Make sure to create an Application with Application() before using route() in templates.")
+    end
+    return application_instance:url_for(route_name, ...)
+end, true)
 
 
 

@@ -1,5 +1,7 @@
 local assert = require("luassert")
 local Template = require("nibiru.template")
+local Route = require("nibiru.route")
+local Application = require("nibiru.application")
 
 local tests = {}
 
@@ -67,6 +69,92 @@ function tests.test_function_unknown_function()
     end)
     assert.is_false(success)
     assert.match("Unknown function 'nonexistent_func'", err)
+end
+
+-- Route function tests
+
+function tests.test_route_function_no_application()
+    -- Test that route function errors when no application is set
+    Template.clear_components()
+    Template.clear_application() -- Clear any existing application
+
+    local success, err = pcall(function()
+        local template = Template("{{ route('test_route') }}")
+        template({})
+    end)
+    assert.is_false(success)
+    assert.match("No application instance available", err)
+end
+
+function tests.test_route_function_with_application()
+    -- Test that route function works when application is set
+    Template.clear_components()
+    Template.clear_templates()
+
+    -- Create a real application with routes
+    local routes = {
+        Route("/test", function() end, "test_route")
+    }
+    local app = Application(routes, "tests/data/config.lua")
+
+    local template = Template("{{ route('test_route') }}")
+    local result = template({})
+    assert.equal("/test", result)
+end
+
+function tests.test_route_function_unknown_route()
+    -- Test that route function errors for unknown route names
+    Template.clear_components()
+    Template.clear_templates()
+
+    -- Create a real application with routes
+    local routes = {
+        Route("/known", function() end, "known_route")
+    }
+    local app = Application(routes, "tests/data/config.lua")
+
+    local success, err = pcall(function()
+        local template = Template("{{ route('unknown_route') }}")
+        template({})
+    end)
+    assert.is_false(success)
+    assert.match("Unknown route name: unknown_route", err)
+end
+
+function tests.test_route_function_with_parameters()
+    -- Test that route function passes parameters correctly
+    Template.clear_components()
+    Template.clear_templates()
+
+    -- Create a real application with parameterized routes
+    local routes = {
+        Route("/users/{id:integer}", function() end, "user_profile")
+    }
+    local app = Application(routes, "tests/data/config.lua")
+
+    local template = Template("{{ route('user_profile', 123) }}")
+    local result = template({})
+    assert.equal("/users/123", result)
+end
+
+function tests.test_route_function_in_component()
+    -- Test that route function works within components
+    Template.clear_components()
+    Template.clear_templates()
+
+    -- Create a real application with routes
+    local routes = {
+        Route("/", function() end, "home")
+    }
+    local app = Application(routes, "tests/data/config.lua")
+
+    Template.component("Link", [[<a href="{{ route('home') }}">Home</a>]])
+
+    local template = Template('<Link/>')
+    local result = template({})
+    assert.equal('<a href="/">Home</a>', result)
+
+    Template.clear_components()
 end
 
 return tests
