@@ -136,4 +136,72 @@ function Route.run(self, request)
     return self.responder(request, table.unpack(parameters))
 end
 
+--- Generate a URL by substituting parameters into the route pattern.
+--- @param ... any Parameters to substitute into the route
+--- @return string The generated URL path
+function Route:url_for(...)
+    local expected_count = #self.converters
+    local actual_count = select("#", ...)
+
+    -- Check argument count
+    if actual_count ~= expected_count then
+        error(
+            string.format(
+                "Route requires %d parameters, got %d",
+                expected_count,
+                actual_count
+            )
+        )
+    end
+
+    -- Get the parameters as a table for easier access
+    local params = { ... }
+
+    -- Validate parameters
+    for i, converter_type in ipairs(self.converters) do
+        local value = params[i]
+
+        -- Check for nil values
+        if value == nil then
+            error(string.format("Parameter %d cannot be nil", i))
+        end
+
+        -- Type-specific validation
+        if converter_type == "string" then
+            -- Convert to string and check for slashes
+            value = tostring(value)
+            if value:find("/") then
+                error(string.format("Parameter %d cannot contain forward slashes", i))
+            end
+        elseif converter_type == "integer" then
+            -- Try to convert to integer
+            local int_value = math.tointeger(value)
+            if int_value == nil then
+                error(string.format("Parameter %d must be a valid integer", i))
+            end
+            -- Convert back to string for URL construction
+            value = tostring(int_value)
+        else
+            -- For any other converter type, just convert to string
+            value = tostring(value)
+        end
+
+        -- Store the validated value back
+        params[i] = value
+    end
+
+    -- Construct the URL by replacing parameter patterns
+    local url = self.path
+    local param_index = 1
+
+    -- Replace each {param:type} with the corresponding validated value
+    url = url:gsub(PARAMETER_PATTERN, function()
+        local value = params[param_index]
+        param_index = param_index + 1
+        return value
+    end)
+
+    return url
+end
+
 return Route

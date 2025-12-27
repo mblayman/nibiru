@@ -181,3 +181,107 @@ Executes the route's responder with extracted parameters.
 - `request` (Request): HTTP request object
 
 **Returns:** Response object from the responder function
+
+## URL Generation
+
+Routes support URL generation through the `url_for` instance method, which performs reverse route matching by constructing URLs from route parameters.
+
+### Basic URL Generation
+
+Use the `url_for` method to generate URLs for routes:
+
+```lua
+local Route = require("nibiru.route")
+
+-- Define a route with parameters
+local blog_route = Route("/blog/{year:integer}/{slug:string}", handler, "blog_post")
+
+-- Generate a URL
+local url = blog_route:url_for(2024, "my-article-title")
+-- Returns: "/blog/2024/my-article-title"
+```
+
+### Parameter Requirements
+
+The `url_for` method expects exactly the same number of arguments as there are parameters in the route pattern:
+
+```lua
+-- Route with two parameters: year (integer) and slug (string)
+local route = Route("/blog/{year:integer}/{slug:string}", handler)
+
+route:url_for(2024, "hello-world")        -- ✅ Correct
+route:url_for(2024)                       -- ❌ Error: missing slug parameter
+route:url_for(2024, "hello", "extra")     -- ❌ Error: too many parameters
+```
+
+### Parameter Validation
+
+- **Nil values**: All parameters must be non-nil
+- **Type checking**: Parameters are validated according to their declared types
+- **Arity checking**: The number of arguments must match the route's parameter count
+
+```lua
+route:url_for(2024, nil)     -- ❌ Error: nil parameter not allowed
+route:url_for("2024", "ok")  -- ❌ Error: year must be integer-compatible
+```
+
+### Supported Parameter Types
+
+The method supports the same parameter types as route matching:
+
+- `string`: Any characters except `/`
+- `integer`: Whole numbers (automatically converted)
+
+### Error Handling
+
+`url_for` provides clear error messages for common issues:
+
+- `"Route requires X parameters, got Y"` - Wrong number of arguments
+- `"Parameter X cannot be nil"` - Nil value provided
+- `"Parameter X must be a valid Y"` - Type conversion failed
+
+### Use Cases
+
+URL generation is commonly used in templates and responders:
+
+```lua
+-- In a responder
+function list_posts(request)
+    local posts = get_posts()
+    for _, post in ipairs(posts) do
+        post.url = blog_route:url_for(post.year, post.slug)
+    end
+    return render("posts.html", { posts = posts })
+end
+
+-- In templates (once route function is implemented)
+<a href="{{ route('blog_post', post.year, post.slug) }}">Read more</a>
+```
+
+### API Reference
+
+#### Route:url_for(...params)
+
+Generates a URL by substituting parameters into the route pattern.
+
+**Parameters:**
+- `...params`: Variable number of parameters matching the route's pattern
+
+**Returns:** `string` - The generated URL path
+
+**Errors:**
+- When parameter count doesn't match route requirements
+- When any parameter is nil
+- When parameter types don't match the route definition
+
+**Examples:**
+```lua
+-- Simple route
+Route("/users/{id:integer}"):url_for(123)                    -- "/users/123"
+
+-- Multiple parameters
+Route("/blog/{year:integer}/{month:integer}/{slug:string}"):url_for(2024, 12, "title")  -- "/blog/2024/12/title"
+
+-- No parameters
+Route("/home"):url_for()                                       -- "/home"
+```
