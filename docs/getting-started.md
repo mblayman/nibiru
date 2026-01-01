@@ -50,13 +50,13 @@ local Route = require("nibiru.route")
 local http = require("nibiru.http")
 
 -- Define a route that responds to GET requests at "/"
-local function hello_handler(request)
+local function hello_responder(request)
     return http.Response(200, "Hello, World!")
 end
 
 -- Create routes table
 local routes = {
-    Route("/", hello_handler, "hello")
+    Route("/", hello_responder, "hello")
 }
 
 -- Create and return the application
@@ -65,7 +65,7 @@ return Application(routes)
 
 ### 2. Run the Server
 
-Start the development server:
+Start the server:
 
 ```bash
 nibiru run hello:app
@@ -79,24 +79,24 @@ Let's break down what each part does:
 
 ### Routes
 
-Routes map URLs to handler functions:
+Routes map URLs to responder functions:
 
 ```lua
 local routes = {
-    Route("/", hello_handler, "hello")  -- path, handler, name
+    Route("/", hello_responder, "hello")  -- path, responder, name
 }
 ```
 
 - **Path**: URL pattern to match (`"/"` matches the root URL)
-- **Handler**: Function that processes the request and returns a response
+- **Responder**: Function that processes the request and returns a response
 - **Name**: Optional identifier for URL generation (more on this later)
 
-### Handlers
+### Responders
 
-Handlers are functions that receive a request and return a response:
+Responders are functions that receive a request and return a response:
 
 ```lua
-local function hello_handler(request)
+local function hello_responder(request)
     return http.Response(200, "Hello, World!")
 end
 ```
@@ -122,22 +122,22 @@ local Application = require("nibiru.application")
 local Route = require("nibiru.route")
 local http = require("nibiru.http")
 
-local function hello_handler(request)
+local function hello_responder(request)
     return http.Response(200, "Hello, World!")
 end
 
-local function about_handler(request)
+local function about_responder(request)
     return http.Response(200, "About Nibiru: A web framework for Lua")
 end
 
-local function greet_handler(request, name)
+local function greet_responder(request, name)
     return http.Response(200, string.format("Hello, %s!", name))
 end
 
 local routes = {
-    Route("/", hello_handler, "hello"),
-    Route("/about", about_handler, "about"),
-    Route("/greet/{name:string}", greet_handler, "greet")
+    Route("/", hello_responder, "hello"),
+    Route("/about", about_responder, "about"),
+    Route("/greet/{name:string}", greet_responder, "greet")
 }
 
 return Application(routes)
@@ -153,7 +153,7 @@ Now you can visit:
 Notice the `/greet/{name:string}` route. This uses path parameters:
 
 - `{name:string}` captures a string value from the URL
-- The captured value is passed as an argument to the handler function
+- The captured value is passed as an argument to the responder function
 - You can use `{param:integer}` for numbers or `{param}` for strings (string is default)
 
 ## Templates
@@ -189,10 +189,10 @@ Hello, {{ name }}!
 {% endblock %}
 ```
 
-Update your handler to use templates:
+Update your responder to use templates:
 
 ```lua
-local function greet_handler(request, name)
+local function greet_responder(request, name)
     return http.Response(200, {
         name = name
     }, "hello.html")
@@ -243,5 +243,4 @@ Now that you have a basic application running, explore:
 - Look at example applications in the `examples/` directory
 - File issues on [GitHub](https://github.com/mblayman/nibiru)
 
-Happy coding with Nibiru! 🚀</content>
-<parameter name="filePath">/home/matt/Work/nibiru/docs/getting-started.md
+Happy coding with Nibiru! 🚀
