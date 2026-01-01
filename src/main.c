@@ -225,30 +225,55 @@ int main(int argc, char *argv[]) {
      * Process arguments.
      */
     if (argc < 2) {
-        printf("Usage: nibiru run <app> [port]\n");
+        printf("Usage: nibiru run [--workers N] <app> [port]\n");
         printf("  <app> is in format of: module.path:app\n");
+        printf("  --workers N: number of worker processes (default: 2)\n");
         return 1;
     }
 
     if (strcmp(argv[1], "run") != 0) {
         printf("Unknown subcommand: %s\n", argv[1]);
-        printf("Usage: nibiru run <app> [port]\n");
-        return 1;
-    }
-
-    if (argc < 3) {
-        printf("Usage: nibiru run <app> [port]\n");
+        printf("Usage: nibiru run [--workers N] <app> [port]\n");
         printf("  <app> is in format of: module.path:app\n");
+        printf("  --workers N: number of worker processes (default: 2)\n");
         return 1;
     }
 
-    if (strcmp(argv[1], "run") != 0) {
-        printf("Unknown subcommand: %s\n", argv[1]);
-        printf("Usage: nibiru run <app> [port]\n");
+    // Parse --workers option
+    int num_workers = 2; // default
+    int arg_offset = 0;
+
+    if (argc >= 3 && strncmp(argv[2], "--workers=", 10) == 0) {
+        // Parse --workers=N format
+        char *workers_str = argv[2] + 10;
+        char *endptr;
+        num_workers = strtol(workers_str, &endptr, 10);
+        if (*endptr != '\0' || num_workers <= 0) {
+            printf("Error: --workers must be a positive integer\n");
+            printf("Usage: nibiru run [--workers N] <app> [port]\n");
+            return 1;
+        }
+        arg_offset = 1;
+    } else if (argc >= 4 && strcmp(argv[2], "--workers") == 0) {
+        // Parse --workers N format
+        char *endptr;
+        num_workers = strtol(argv[3], &endptr, 10);
+        if (*endptr != '\0' || num_workers <= 0) {
+            printf("Error: --workers must be a positive integer\n");
+            printf("Usage: nibiru run [--workers N] <app> [port]\n");
+            return 1;
+        }
+        arg_offset = 2;
+    }
+
+    if (argc < 3 + arg_offset) {
+        printf("Usage: nibiru run [--workers N] <app> [port]\n");
+        printf("  <app> is in format of: module.path:app\n");
+        printf("  --workers N: number of worker processes (default: 2)\n");
         return 1;
     }
 
-    char *app_specifier = argv[2];
+    char *app_specifier = argv[2 + arg_offset];
     char *app_module = strsep(&app_specifier, ":");
     char *app_name = strsep(&app_specifier, ":");
     // The default callable name is "app".
@@ -257,9 +282,13 @@ int main(int argc, char *argv[]) {
     }
 
     char *port = "8080";
-    if (argc >= 4) {
-        port = argv[3];
+    if (argc >= 4 + arg_offset) {
+        port = argv[3 + arg_offset];
     }
+
+    printf("Starting nibiru with %d worker(s)\n", num_workers);
+
+    // TODO: Use num_workers to create worker pool (nb-ar3)
 
     int status;
 
