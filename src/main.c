@@ -168,8 +168,6 @@ int run_worker(int worker_id, int fd_socket, int completion_socket,
         return 1;
     }
 
-    printf("Worker %d started with PID %d\n", worker_id, getpid());
-
     // Worker main loop - receive FDs and handle connections
     while (1) {
         // Receive file descriptor from parent
@@ -608,7 +606,7 @@ int main(int argc, char *argv[]) {
         port = argv[3 + arg_offset];
     }
 
-    printf("Starting nibiru with %d worker(s)\n", num_workers);
+    printf("Starting nibiru with %d workers\n", num_workers);
 
     int status;
 
@@ -631,10 +629,6 @@ int main(int argc, char *argv[]) {
         free_worker_pool(&worker_pool);
         return 1;
     }
-
-    // Worker pool initialized successfully
-    printf("Worker pool initialized with %d workers\n",
-           worker_pool.num_workers);
 
     // Set up signal handlers for graceful shutdown
     struct sigaction sa;
@@ -709,8 +703,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    printf("Server listening on %s with %d workers...\n", port,
-           worker_pool.num_workers);
+    printf("Server listening on %s...\n", port);
 
     // Main server loop - accept connections and handle worker communications
     while (!shutdown_requested) {
