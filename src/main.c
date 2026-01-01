@@ -23,6 +23,10 @@ struct WorkerState {
 
 #define MAX_WORKERS 64
 
+// Forward declarations
+int send_fd_to_worker(int unix_socket, int fd_to_send);
+int receive_fd_from_parent(int unix_socket);
+
 struct WorkerPool {
     int num_workers;
     pid_t worker_pids[MAX_WORKERS];
@@ -157,7 +161,64 @@ int run_worker(int worker_id, int unix_socket, const char *app_module,
     printf("Worker %d started with PID %d\n", worker_id, getpid());
 
     // Worker main loop - receive FDs and handle connections
-    // TODO: Implement FD receiving and connection handling
+    while (1) {
+        // Receive file descriptor from parent
+        int client_fd = receive_fd_from_parent(unix_socket);
+        if (client_fd == -1) {
+            fprintf(stderr, "Worker %d: Failed to receive FD\n", worker_id);
+            continue;
+        }
+
+        printf("Worker %d: Handling connection on FD %d\n", worker_id,
+               client_fd);
+
+        // TODO: This should probably be much larger and configurable.
+        int receive_buffer_size = 10000;
+        char receive_buffer[receive_buffer_size];
+
+        // Handle the HTTP request
+        int bytes_received =
+            recv(client_fd, receive_buffer, receive_buffer_size, 0);
+        if (bytes_received > 0) {
+            // Add null to terminate the C string from Lua's point of view.
+            receive_buffer[bytes_received] = '\0';
+
+            // Process the request with Lua
+            lua_rawgeti(worker.lua_state, LUA_REGISTRYINDEX,
+                        worker.handle_connection_reference);
+            lua_rawgeti(worker.lua_state, LUA_REGISTRYINDEX,
+                        worker.application_reference);
+            lua_pushstring(worker.lua_state, receive_buffer);
+
+            status = lua_pcall(worker.lua_state, 2, 1, 0);
+            if (status != LUA_OK) {
+                printf("Worker %d: Lua error: %s\n", worker_id,
+                       lua_tostring(worker.lua_state, -1));
+                // Send a basic error response
+                const char *error_response =
+                    "HTTP/1.1 500 Internal Server Error\r\n\r\n";
+                send(client_fd, error_response, strlen(error_response), 0);
+            } else {
+                size_t response_length;
+                const char *response =
+                    lua_tolstring(worker.lua_state, -1, &response_length);
+                int bytes_sent = send(client_fd, response, response_length, 0);
+                if (bytes_sent == -1) {
+                    perror("Worker: send failed");
+                }
+                lua_pop(worker.lua_state, 1);
+            }
+        } else if (bytes_received == 0) {
+            // Connection closed by client
+            printf("Worker %d: Connection closed by client\n", worker_id);
+        } else {
+            perror("Worker: recv failed");
+        }
+
+        close(client_fd);
+
+        // TODO: Send completion notification back to parent (nb-x43)
+    }
 
     free_worker(&worker);
     return 0;
@@ -216,6 +277,68 @@ void free_worker_pool(struct WorkerPool *pool) {
             close(pool->unix_sockets[i]);
         }
     }
+}
+
+// Send a file descriptor to a worker via UNIX socket
+int send_fd_to_worker(int unix_socket, int fd_to_send) {
+    struct msghdr msg = {0};
+    struct cmsghdr *cmsg;
+    char buf[CMSG_SPACE(sizeof(fd_to_send))];
+    memset(buf, 0, sizeof(buf));
+
+    // Dummy data to send
+    struct iovec io = {.iov_base = "FD", .iov_len = 2};
+    msg.msg_iov = &io;
+    msg.msg_iovlen = 1;
+
+    msg.msg_control = buf;
+    msg.msg_controllen = sizeof(buf);
+
+    cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(fd_to_send));
+
+    memcpy(CMSG_DATA(cmsg), &fd_to_send, sizeof(fd_to_send));
+
+    ssize_t sent = sendmsg(unix_socket, &msg, 0);
+    if (sent == -1) {
+        perror("sendmsg failed");
+        return -1;
+    }
+
+    return 0;
+}
+
+// Receive a file descriptor from the parent
+int receive_fd_from_parent(int unix_socket) {
+    struct msghdr msg = {0};
+    struct cmsghdr *cmsg;
+    char buf[CMSG_SPACE(sizeof(int))];
+    char iobuf[2];
+
+    struct iovec io = {.iov_base = iobuf, .iov_len = sizeof(iobuf)};
+    msg.msg_iov = &io;
+    msg.msg_iovlen = 1;
+    msg.msg_control = buf;
+    msg.msg_controllen = sizeof(buf);
+
+    ssize_t received = recvmsg(unix_socket, &msg, 0);
+    if (received == -1) {
+        perror("recvmsg failed");
+        return -1;
+    }
+
+    cmsg = CMSG_FIRSTHDR(&msg);
+    if (cmsg == NULL || cmsg->cmsg_level != SOL_SOCKET ||
+        cmsg->cmsg_type != SCM_RIGHTS) {
+        fprintf(stderr, "Invalid control message\n");
+        return -1;
+    }
+
+    int received_fd;
+    memcpy(&received_fd, CMSG_DATA(cmsg), sizeof(received_fd));
+    return received_fd;
 }
 
 /**
@@ -400,15 +523,102 @@ int main(int argc, char *argv[]) {
     printf("Worker pool initialized with %d workers\n",
            worker_pool.num_workers);
 
-    // TODO: Implement main server loop with FD passing and load balancing
-    // (nb-i1c, nb-x43, nb-1rj)
+    // Set up the listening socket
+    struct addrinfo hints;
+    struct addrinfo *server_info;
 
-    // For now, just wait for workers (they will exit on their own)
-    // In the future, this will be the main server loop
-    for (int i = 0; i < num_workers; i++) {
-        waitpid(worker_pool.worker_pids[i], NULL, 0);
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = AF_UNSPEC; // IPv4 or IPv6
+    hints.ai_socktype = SOCK_STREAM;
+
+    int addr_status = getaddrinfo(NULL, port, &hints, &server_info);
+    if (addr_status != 0) {
+        fprintf(stderr, "Failed to get server information: %s\n",
+                gai_strerror(addr_status));
+        free_worker_pool(&worker_pool);
+        return 1;
     }
 
+    struct addrinfo *current_server_info;
+    int listen_socket_fd;
+    for (current_server_info = server_info; current_server_info != NULL;
+         current_server_info = current_server_info->ai_next) {
+        listen_socket_fd = socket(current_server_info->ai_family,
+                                  current_server_info->ai_socktype,
+                                  current_server_info->ai_protocol);
+        if (listen_socket_fd == -1) {
+            continue;
+        }
+
+        int opt = 1;
+        setsockopt(listen_socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt,
+                   sizeof(opt));
+
+        int bind_status = bind(listen_socket_fd, current_server_info->ai_addr,
+                               current_server_info->ai_addrlen);
+        if (bind_status == -1) {
+            close(listen_socket_fd);
+            continue;
+        }
+
+        break;
+    }
+
+    freeaddrinfo(server_info);
+
+    if (current_server_info == NULL) {
+        perror("Failed to bind socket");
+        free_worker_pool(&worker_pool);
+        return 1;
+    }
+
+    int backlog = 128;
+    int listen_status = listen(listen_socket_fd, backlog);
+    if (listen_status == -1) {
+        perror("Failed to listen");
+        close(listen_socket_fd);
+        free_worker_pool(&worker_pool);
+        return 1;
+    }
+
+    printf("Server listening on %s with %d workers...\n", port,
+           worker_pool.num_workers);
+
+    // Main server loop - accept connections and distribute to workers
+    int current_worker =
+        0; // TODO: Replace with least connection algorithm (nb-1rj)
+    while (1) {
+        struct sockaddr_storage client_addr;
+        socklen_t addr_size = sizeof(client_addr);
+
+        int client_fd = accept(listen_socket_fd,
+                               (struct sockaddr *)&client_addr, &addr_size);
+        if (client_fd == -1) {
+            perror("Accept failed");
+            continue;
+        }
+
+        printf("Accepted connection, sending to worker %d\n", current_worker);
+
+        // Send FD to the selected worker
+        int send_status = send_fd_to_worker(
+            worker_pool.unix_sockets[current_worker], client_fd);
+        if (send_status != 0) {
+            fprintf(stderr, "Failed to send FD to worker %d\n", current_worker);
+            close(client_fd);
+        } else {
+            // TODO: Track connection count for load balancing (nb-1rj)
+        }
+
+        // Close our copy of the client FD (worker has it now)
+        close(client_fd);
+
+        // Simple round-robin for now - TODO: least connection (nb-1rj)
+        current_worker = (current_worker + 1) % worker_pool.num_workers;
+    }
+
+    close(listen_socket_fd);
     free_worker_pool(&worker_pool);
     return 0;
 }
