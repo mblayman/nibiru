@@ -192,8 +192,7 @@ int run_worker(int worker_id, int fd_socket, int completion_socket,
             continue;
         }
 
-        printf("Worker %d: Handling connection on FD %d\n", worker_id,
-               client_fd);
+        // Processing HTTP request
 
         // TODO: This should probably be much larger and configurable.
         int receive_buffer_size = 10000;
@@ -438,9 +437,6 @@ int receive_fd_from_parent(int unix_socket) {
         fprintf(stderr, "Invalid control message\n");
         return -1;
     }
-
-    printf("Worker received message with %zd bytes, iov='%.*s'\n", received,
-           (int)received, iobuf);
 
     cmsg = CMSG_FIRSTHDR(&msg);
     if (cmsg == NULL) {
