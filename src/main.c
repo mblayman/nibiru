@@ -1,4 +1,5 @@
 #include <bsd/string.h> // for strlcpy on some systems
+#include <errno.h>
 #include <lauxlib.h>
 #include <libgen.h>
 #include <limits.h>
@@ -24,15 +25,18 @@ struct WorkerState {
 #define MAX_WORKERS 64
 
 // Forward declarations
+int send_completion_to_parent(int unix_socket);
+int receive_completion_from_worker(int unix_socket);
 int send_fd_to_worker(int unix_socket, int fd_to_send);
 int receive_fd_from_parent(int unix_socket);
 
 struct WorkerPool {
     int num_workers;
     pid_t worker_pids[MAX_WORKERS];
-    int unix_sockets[MAX_WORKERS]; // Parent-side sockets for communication with
-                                   // workers
-    int connection_counts[MAX_WORKERS]; // For least connection load balancing
+    int fd_sockets[MAX_WORKERS];         // For sending FDs to workers
+    int completion_sockets[MAX_WORKERS]; // For receiving completion
+                                         // notifications from workers
+    int connection_counts[MAX_WORKERS];  // For least connection load balancing
 };
 
 /**
@@ -148,8 +152,8 @@ void free_worker(struct WorkerState *worker) {
     }
 }
 
-int run_worker(int worker_id, int unix_socket, const char *app_module,
-               const char *app_name) {
+int run_worker(int worker_id, int fd_socket, int completion_socket,
+               const char *app_module, const char *app_name) {
     // Initialize worker state
     struct WorkerState worker;
     int status = initialize_worker(&worker, app_module, app_name);
@@ -163,7 +167,7 @@ int run_worker(int worker_id, int unix_socket, const char *app_module,
     // Worker main loop - receive FDs and handle connections
     while (1) {
         // Receive file descriptor from parent
-        int client_fd = receive_fd_from_parent(unix_socket);
+        int client_fd = receive_fd_from_parent(fd_socket);
         if (client_fd == -1) {
             fprintf(stderr, "Worker %d: Failed to receive FD\n", worker_id);
             continue;
@@ -217,7 +221,12 @@ int run_worker(int worker_id, int unix_socket, const char *app_module,
 
         close(client_fd);
 
-        // TODO: Send completion notification back to parent (nb-x43)
+        // Send completion notification back to parent
+        if (send_completion_to_parent(completion_socket) != 0) {
+            fprintf(stderr,
+                    "Worker %d: Failed to send completion notification\n",
+                    worker_id);
+        }
     }
 
     free_worker(&worker);
@@ -231,37 +240,56 @@ int initialize_worker_pool(struct WorkerPool *pool, int num_workers,
     // Initialize arrays
     for (int i = 0; i < num_workers; i++) {
         pool->worker_pids[i] = -1;
-        pool->unix_sockets[i] = -1;
+        pool->fd_sockets[i] = -1;
+        pool->completion_sockets[i] = -1;
         pool->connection_counts[i] = 0;
     }
 
-    // Create socket pairs for each worker
+    // Create socket pairs for each worker (two pairs: one for FDs, one for
+    // completion)
     for (int i = 0; i < num_workers; i++) {
-        int sockets[2];
-        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == -1) {
-            perror("Failed to create socket pair");
+        // FD passing socket pair
+        int fd_sockets[2];
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, fd_sockets) == -1) {
+            perror("Failed to create FD socket pair");
             return 1;
         }
-        pool->unix_sockets[i] = sockets[0]; // Parent keeps sockets[0]
-        // Worker will use sockets[1]
+
+        // Completion notification socket pair
+        int completion_sockets[2];
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, completion_sockets) == -1) {
+            perror("Failed to create completion socket pair");
+            close(fd_sockets[0]);
+            close(fd_sockets[1]);
+            return 1;
+        }
+
+        pool->fd_sockets[i] = fd_sockets[0]; // Parent sends FDs
+        pool->completion_sockets[i] =
+            completion_sockets[0]; // Parent receives completions
 
         // Fork worker process
         pid_t pid = fork();
         if (pid == -1) {
             perror("Failed to fork worker");
-            close(sockets[0]);
-            close(sockets[1]);
+            close(fd_sockets[0]);
+            close(fd_sockets[1]);
+            close(completion_sockets[0]);
+            close(completion_sockets[1]);
             return 1;
         }
 
         if (pid == 0) {
             // Child process - become a worker
-            close(sockets[0]); // Close parent's end
-            return run_worker(i, sockets[1], app_module, app_name);
+            close(fd_sockets[0]);         // Close parent's FD socket
+            close(completion_sockets[0]); // Close parent's completion socket
+            return run_worker(i, fd_sockets[1], completion_sockets[1],
+                              app_module, app_name);
         } else {
             // Parent process
             pool->worker_pids[i] = pid;
-            close(sockets[1]); // Close worker's end
+            close(fd_sockets[1]);         // Close worker's FD socket
+            close(completion_sockets[1]); // Close worker's completion socket
         }
     }
 
@@ -273,10 +301,46 @@ void free_worker_pool(struct WorkerPool *pool) {
         if (pool->worker_pids[i] != -1) {
             kill(pool->worker_pids[i], SIGTERM);
         }
-        if (pool->unix_sockets[i] != -1) {
-            close(pool->unix_sockets[i]);
+        if (pool->fd_sockets[i] != -1) {
+            close(pool->fd_sockets[i]);
+        }
+        if (pool->completion_sockets[i] != -1) {
+            close(pool->completion_sockets[i]);
         }
     }
+}
+
+// Send completion notification from worker to parent
+int send_completion_to_parent(int unix_socket) {
+    char completion_msg = 'D'; // 'D' for Done
+    ssize_t sent = send(unix_socket, &completion_msg, 1, 0);
+    if (sent == -1) {
+        perror("send completion failed");
+        return -1;
+    }
+    return 0;
+}
+
+// Receive completion notification in parent
+int receive_completion_from_worker(int unix_socket) {
+    char completion_msg;
+    ssize_t received = recv(unix_socket, &completion_msg, 1, MSG_DONTWAIT);
+    if (received == -1) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // No message available
+            return 0;
+        }
+        perror("recv completion failed");
+        return -1;
+    }
+    if (received == 0) {
+        // Worker closed connection
+        return -1;
+    }
+    if (completion_msg == 'D') {
+        return 1; // Completion received
+    }
+    return 0; // Unknown message
 }
 
 // Send a file descriptor to a worker via UNIX socket
@@ -585,16 +649,37 @@ int main(int argc, char *argv[]) {
     printf("Server listening on %s with %d workers...\n", port,
            worker_pool.num_workers);
 
-    // Main server loop - accept connections and distribute to workers
+    // Main server loop - accept connections and handle worker communications
     int current_worker =
         0; // TODO: Replace with least connection algorithm (nb-1rj)
     while (1) {
+        // Check for completion notifications from all workers
+        for (int i = 0; i < worker_pool.num_workers; i++) {
+            int completion = receive_completion_from_worker(
+                worker_pool.completion_sockets[i]);
+            if (completion == 1) {
+                // Worker completed a connection
+                worker_pool.connection_counts[i]--;
+                printf("Worker %d completed connection (count now: %d)\n", i,
+                       worker_pool.connection_counts[i]);
+            } else if (completion == -1) {
+                // Worker socket closed - worker may have died
+                fprintf(stderr, "Worker %d socket closed unexpectedly\n", i);
+            }
+        }
+
+        // Accept new connections
         struct sockaddr_storage client_addr;
         socklen_t addr_size = sizeof(client_addr);
 
         int client_fd = accept(listen_socket_fd,
                                (struct sockaddr *)&client_addr, &addr_size);
         if (client_fd == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // No connection available, continue checking worker messages
+                usleep(1000); // Small delay to avoid busy waiting
+                continue;
+            }
             perror("Accept failed");
             continue;
         }
@@ -603,12 +688,15 @@ int main(int argc, char *argv[]) {
 
         // Send FD to the selected worker
         int send_status = send_fd_to_worker(
-            worker_pool.unix_sockets[current_worker], client_fd);
+            worker_pool.fd_sockets[current_worker], client_fd);
         if (send_status != 0) {
             fprintf(stderr, "Failed to send FD to worker %d\n", current_worker);
             close(client_fd);
         } else {
-            // TODO: Track connection count for load balancing (nb-1rj)
+            // Track connection count for load balancing
+            worker_pool.connection_counts[current_worker]++;
+            printf("Worker %d now has %d connections\n", current_worker,
+                   worker_pool.connection_counts[current_worker]);
         }
 
         // Close our copy of the client FD (worker has it now)
