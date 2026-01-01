@@ -225,11 +225,30 @@ int main(int argc, char *argv[]) {
      * Process arguments.
      */
     if (argc < 2) {
-        printf("Expected app callable in format of: module.path:app\n");
+        printf("Usage: nibiru run <app> [port]\n");
+        printf("  <app> is in format of: module.path:app\n");
         return 1;
     }
 
-    char *app_specifier = argv[1];
+    if (strcmp(argv[1], "run") != 0) {
+        printf("Unknown subcommand: %s\n", argv[1]);
+        printf("Usage: nibiru run <app> [port]\n");
+        return 1;
+    }
+
+    if (argc < 3) {
+        printf("Usage: nibiru run <app> [port]\n");
+        printf("  <app> is in format of: module.path:app\n");
+        return 1;
+    }
+
+    if (strcmp(argv[1], "run") != 0) {
+        printf("Unknown subcommand: %s\n", argv[1]);
+        printf("Usage: nibiru run <app> [port]\n");
+        return 1;
+    }
+
+    char *app_specifier = argv[2];
     char *app_module = strsep(&app_specifier, ":");
     char *app_name = strsep(&app_specifier, ":");
     // The default callable name is "app".
@@ -238,8 +257,8 @@ int main(int argc, char *argv[]) {
     }
 
     char *port = "8080";
-    if (argc == 3) {
-        port = argv[2];
+    if (argc >= 4) {
+        port = argv[3];
     }
 
     int status;

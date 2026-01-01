@@ -20,7 +20,7 @@ exe:
 	-o nibiru
 
 run: build
-	./nibiru docs.app:app
+	./nibiru run docs.app:app
 
 clean:
 	rm -rf out nibiru lua/nibiru_core.so rocks
