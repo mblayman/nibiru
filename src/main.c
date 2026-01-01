@@ -310,6 +310,21 @@ void free_worker_pool(struct WorkerPool *pool) {
     }
 }
 
+// Find worker with least connections (least connection load balancing)
+int find_least_loaded_worker(struct WorkerPool *pool) {
+    int min_connections = INT_MAX;
+    int selected_worker = 0;
+
+    for (int i = 0; i < pool->num_workers; i++) {
+        if (pool->connection_counts[i] < min_connections) {
+            min_connections = pool->connection_counts[i];
+            selected_worker = i;
+        }
+    }
+
+    return selected_worker;
+}
+
 // Send completion notification from worker to parent
 int send_completion_to_parent(int unix_socket) {
     char completion_msg = 'D'; // 'D' for Done
@@ -392,11 +407,30 @@ int receive_fd_from_parent(int unix_socket) {
         perror("recvmsg failed");
         return -1;
     }
+    if (received == 0) {
+        // Parent closed the socket - exit gracefully
+        printf("Worker: Parent closed connection, exiting\n");
+        return 0;
+    }
 
     cmsg = CMSG_FIRSTHDR(&msg);
     if (cmsg == NULL || cmsg->cmsg_level != SOL_SOCKET ||
         cmsg->cmsg_type != SCM_RIGHTS) {
         fprintf(stderr, "Invalid control message\n");
+        return -1;
+    }
+
+    printf("Worker received message with %zd bytes, iov='%.*s'\n", received,
+           (int)received, iobuf);
+
+    cmsg = CMSG_FIRSTHDR(&msg);
+    if (cmsg == NULL) {
+        fprintf(stderr, "No control message received\n");
+        return -1;
+    }
+    if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS) {
+        fprintf(stderr, "Invalid control message: level=%d, type=%d\n",
+                cmsg->cmsg_level, cmsg->cmsg_type);
         return -1;
     }
 
@@ -650,8 +684,6 @@ int main(int argc, char *argv[]) {
            worker_pool.num_workers);
 
     // Main server loop - accept connections and handle worker communications
-    int current_worker =
-        0; // TODO: Replace with least connection algorithm (nb-1rj)
     while (1) {
         // Check for completion notifications from all workers
         for (int i = 0; i < worker_pool.num_workers; i++) {
@@ -684,26 +716,26 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        printf("Accepted connection, sending to worker %d\n", current_worker);
+        // Select worker with least connections
+        int selected_worker = find_least_loaded_worker(&worker_pool);
+        printf("Accepted connection, sending to worker %d\n", selected_worker);
 
         // Send FD to the selected worker
         int send_status = send_fd_to_worker(
-            worker_pool.fd_sockets[current_worker], client_fd);
+            worker_pool.fd_sockets[selected_worker], client_fd);
         if (send_status != 0) {
-            fprintf(stderr, "Failed to send FD to worker %d\n", current_worker);
+            fprintf(stderr, "Failed to send FD to worker %d\n",
+                    selected_worker);
             close(client_fd);
         } else {
             // Track connection count for load balancing
-            worker_pool.connection_counts[current_worker]++;
-            printf("Worker %d now has %d connections\n", current_worker,
-                   worker_pool.connection_counts[current_worker]);
+            worker_pool.connection_counts[selected_worker]++;
+            printf("Worker %d now has %d connections\n", selected_worker,
+                   worker_pool.connection_counts[selected_worker]);
         }
 
         // Close our copy of the client FD (worker has it now)
         close(client_fd);
-
-        // Simple round-robin for now - TODO: least connection (nb-1rj)
-        current_worker = (current_worker + 1) % worker_pool.num_workers;
     }
 
     close(listen_socket_fd);
