@@ -24,6 +24,12 @@ struct WorkerState {
 
 #define MAX_WORKERS 64
 
+// Global flag for graceful shutdown
+volatile sig_atomic_t shutdown_requested = 0;
+
+// Signal handler for graceful shutdown
+void signal_handler(int signum) { shutdown_requested = 1; }
+
 // Forward declarations
 int send_completion_to_parent(int unix_socket);
 int receive_completion_from_worker(int unix_socket);
@@ -168,8 +174,21 @@ int run_worker(int worker_id, int fd_socket, int completion_socket,
     while (1) {
         // Receive file descriptor from parent
         int client_fd = receive_fd_from_parent(fd_socket);
+        if (client_fd == -2) {
+            // Parent closed the socket - exit gracefully
+            printf("Worker %d: Parent exited, shutting down\n", worker_id);
+            break;
+        }
+        if (client_fd == -2) {
+            // Parent closed the socket - exit gracefully
+            printf("Worker %d: Parent exited, shutting down\n", worker_id);
+            break;
+        }
         if (client_fd == -1) {
-            fprintf(stderr, "Worker %d: Failed to receive FD\n", worker_id);
+            fprintf(stderr, "Worker %d: Failed to receive FD (errno=%d)\n",
+                    worker_id, errno);
+            // Small delay to prevent busy looping on persistent errors
+            usleep(10000);
             continue;
         }
 
@@ -410,7 +429,7 @@ int receive_fd_from_parent(int unix_socket) {
     if (received == 0) {
         // Parent closed the socket - exit gracefully
         printf("Worker: Parent closed connection, exiting\n");
-        return 0;
+        return -2; // Special value to indicate parent exit
     }
 
     cmsg = CMSG_FIRSTHDR(&msg);
@@ -621,6 +640,20 @@ int main(int argc, char *argv[]) {
     printf("Worker pool initialized with %d workers\n",
            worker_pool.num_workers);
 
+    // Set up signal handlers for graceful shutdown
+    struct sigaction sa;
+    sa.sa_handler = signal_handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+
+    // Handle SIGTERM and SIGINT for graceful shutdown
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
+
+    // Ignore SIGPIPE (broken pipe from client disconnects)
+    sa.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &sa, NULL);
+
     // Set up the listening socket
     struct addrinfo hints;
     struct addrinfo *server_info;
@@ -684,7 +717,7 @@ int main(int argc, char *argv[]) {
            worker_pool.num_workers);
 
     // Main server loop - accept connections and handle worker communications
-    while (1) {
+    while (!shutdown_requested) {
         // Check for completion notifications from all workers
         for (int i = 0; i < worker_pool.num_workers; i++) {
             int completion = receive_completion_from_worker(
