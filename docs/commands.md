@@ -48,13 +48,6 @@ nibiru run --workers=4 myapp:app 3000
 nibiru run myapp  # equivalent to myapp:app
 ```
 
-**Worker Process Model:**
-
-- Each worker runs in a separate process
-- Workers share incoming connections using a least-connection load balancing algorithm
-- Default of 2 workers provides basic concurrency without overwhelming single-core systems
-- Increase workers based on your CPU cores and workload
-
 **Configuration:**
 
 The application can be configured via a `config.lua` file in the working directory. See [Configuration](config.md) for details.
@@ -128,18 +121,6 @@ Nibiru respects these environment variables:
 
 These are automatically set when running from a LuaRocks installation.
 
-## Performance Tuning
-
-### Worker Count
-
-- **Default**: 2 workers (conservative for development)
-- **Production**: Start with CPU core count
-- **High load**: May need 2-4x CPU cores depending on workload
-
-### Monitoring
-
-Check server logs for performance insights. The server reports startup information including worker count.
-
 ## Troubleshooting
 
 ### Port Already in Use
@@ -210,5 +191,4 @@ nibiru run --workers 2 myapp:app 3000
 - [Getting Started](getting-started.md) - Beginner tutorial
 - [Application Guide](application.md) - Building applications
 - [Configuration](config.md) - Application configuration
-- [WSGI Interface](wsgi.md) - Server interface specification</content>
-<parameter name="filePath">/home/matt/Work/nibiru/docs/commands.md
+- [WSGI Interface](wsgi.md) - Server interface specification

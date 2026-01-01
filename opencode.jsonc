@@ -6,5 +6,10 @@
       "command": ["beads-mcp"],
       "enabled": true
     }
+  },
+  "permissions": {
+    "bash": {
+      "git push": "ask"
+    }
   }
 }
