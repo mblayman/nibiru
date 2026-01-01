@@ -1,0 +1,214 @@
+# Command Reference
+
+This document describes all available nibiru commands and their options.
+
+## Overview
+
+Nibiru provides a command-line interface for running web applications. The main command is `nibiru run` for starting the web server.
+
+## Commands
+
+### `nibiru run`
+
+Start the Nibiru web server with a WSGI application.
+
+```bash
+nibiru run [--workers N] <app> [port]
+```
+
+**Arguments:**
+
+- `<app>`: WSGI application in the format `module.path:callable` (e.g., `myapp:app`)
+  - `module.path` - Lua module path to require
+  - `callable` - Name of the WSGI callable (defaults to `app` if omitted)
+- `[port]` (optional): Port to listen on (defaults to 8080)
+
+**Options:**
+
+- `--workers N`: Number of worker processes to spawn (default: 2)
+  - Can be specified as `--workers=N` or `--workers N`
+  - Must be a positive integer
+
+**Examples:**
+
+```bash
+# Basic usage with default settings
+nibiru run myapp:app
+
+# Specify port
+nibiru run myapp:app 3000
+
+# Run with 4 worker processes
+nibiru run --workers 4 myapp:app
+
+# Alternative syntax for workers
+nibiru run --workers=4 myapp:app 3000
+
+# Using default callable name
+nibiru run myapp  # equivalent to myapp:app
+```
+
+**Worker Process Model:**
+
+- Each worker runs in a separate process
+- Workers share incoming connections using a least-connection load balancing algorithm
+- Default of 2 workers provides basic concurrency without overwhelming single-core systems
+- Increase workers based on your CPU cores and workload
+
+**Configuration:**
+
+The application can be configured via a `config.lua` file in the working directory. See [Configuration](config.md) for details.
+
+## Error Handling
+
+### Invalid Arguments
+
+```bash
+$ nibiru run
+Usage: nibiru run [--workers N] <app> [port]
+  <app> is in format of: module.path:app
+  --workers N: number of worker processes (default: 2)
+```
+
+### Invalid Worker Count
+
+```bash
+$ nibiru run --workers=0 myapp:app
+Error: --workers must be a positive integer
+Usage: nibiru run [--workers N] <app> [port]
+```
+
+### Module Not Found
+
+```bash
+$ nibiru run nonexistent:app
+Starting nibiru with 2 worker(s)
+Error: lua/nibiru/server/boot.lua:11: module 'nonexistent.app' not found
+```
+
+### Application Not Callable
+
+```bash
+$ nibiru run myapp:invalid
+Starting nibiru with 2 worker(s)
+Error: `invalid` is not a valid callable.
+```
+
+## Server Behavior
+
+### Startup
+
+When you run `nibiru run myapp:app`, the server:
+
+1. Parses command line arguments
+2. Loads the Lua module `myapp`
+3. Extracts the `app` callable from the module
+4. Validates the callable implements the WSGI interface
+5. Starts listening on the specified port
+6. Forks worker processes (default: 2)
+7. Begins accepting connections
+
+### Request Processing
+
+- **Parent Process**: Accepts connections and distributes them to workers
+- **Worker Processes**: Handle HTTP parsing and execute your WSGI application
+- **Load Balancing**: Uses least-connection algorithm to distribute load fairly
+- **Isolation**: Each worker runs in its own process with separate Lua state
+
+### Shutdown
+
+Send SIGTERM or SIGINT (Ctrl+C) to gracefully shut down all workers.
+
+## Environment Variables
+
+Nibiru respects these environment variables:
+
+- `LUA_PATH`: Additional Lua module search paths
+- `LUA_CPATH`: Additional Lua C module search paths
+
+These are automatically set when running from a LuaRocks installation.
+
+## Performance Tuning
+
+### Worker Count
+
+- **Default**: 2 workers (conservative for development)
+- **Production**: Start with CPU core count
+- **High load**: May need 2-4x CPU cores depending on workload
+
+### Monitoring
+
+Check server logs for performance insights. The server reports startup information including worker count.
+
+## Troubleshooting
+
+### Port Already in Use
+
+```
+Error: Address already in use
+```
+
+- Another process is using the port
+- Use `lsof -i :8080` to find what's using the port
+- Specify a different port: `nibiru run myapp:app 3000`
+
+### Module Loading Issues
+
+Common problems:
+
+- **Wrong module path**: Ensure the Lua file is in the require path
+- **Syntax errors**: Check Lua syntax in your application file
+- **Missing dependencies**: Ensure all required modules are installed
+
+### Performance Issues
+
+- **Single worker bottleneck**: Try `--workers 4` or more
+- **Memory usage**: Monitor with system tools
+- **Slow responses**: Check your application logic and database queries
+
+## Examples
+
+### Basic Hello World
+
+Create `hello.lua`:
+
+```lua
+local Application = require("nibiru.application")
+local Route = require("nibiru.route")
+local http = require("nibiru.http")
+
+local routes = {
+    Route("/", function(request)
+        return http.Response(200, "Hello, World!")
+    end)
+}
+
+return Application(routes)
+```
+
+Run with:
+```bash
+nibiru run hello:app
+```
+
+### Production Deployment
+
+```bash
+# Production setup with more workers
+nibiru run --workers 8 myapp:app 80
+```
+
+### Development with Custom Port
+
+```bash
+# Development on port 3000
+nibiru run --workers 2 myapp:app 3000
+```
+
+## Related Documentation
+
+- [Getting Started](getting-started.md) - Beginner tutorial
+- [Application Guide](application.md) - Building applications
+- [Configuration](config.md) - Application configuration
+- [WSGI Interface](wsgi.md) - Server interface specification</content>
+<parameter name="filePath">/home/matt/Work/nibiru/docs/commands.md
