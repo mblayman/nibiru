@@ -1,3 +1,4 @@
+#include <bsd/string.h> // for strlcpy on some systems
 #include <lauxlib.h>
 #include <libgen.h>
 #include <limits.h>
@@ -8,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 struct WorkerState {
@@ -17,6 +19,16 @@ struct WorkerState {
     int application_reference;
     // The connection handler within nibiru's Lua code
     int handle_connection_reference;
+};
+
+#define MAX_WORKERS 64
+
+struct WorkerPool {
+    int num_workers;
+    pid_t worker_pids[MAX_WORKERS];
+    int unix_sockets[MAX_WORKERS]; // Parent-side sockets for communication with
+                                   // workers
+    int connection_counts[MAX_WORKERS]; // For least connection load balancing
 };
 
 /**
@@ -129,6 +141,80 @@ int initialize_worker(struct WorkerState *worker, const char *app_module,
 void free_worker(struct WorkerState *worker) {
     if (worker->lua_state != NULL) {
         lua_close(worker->lua_state);
+    }
+}
+
+int run_worker(int worker_id, int unix_socket, const char *app_module,
+               const char *app_name) {
+    // Initialize worker state
+    struct WorkerState worker;
+    int status = initialize_worker(&worker, app_module, app_name);
+    if (status != 0) {
+        free_worker(&worker);
+        return 1;
+    }
+
+    printf("Worker %d started with PID %d\n", worker_id, getpid());
+
+    // Worker main loop - receive FDs and handle connections
+    // TODO: Implement FD receiving and connection handling
+
+    free_worker(&worker);
+    return 0;
+}
+
+int initialize_worker_pool(struct WorkerPool *pool, int num_workers,
+                           const char *app_module, const char *app_name) {
+    pool->num_workers = num_workers;
+
+    // Initialize arrays
+    for (int i = 0; i < num_workers; i++) {
+        pool->worker_pids[i] = -1;
+        pool->unix_sockets[i] = -1;
+        pool->connection_counts[i] = 0;
+    }
+
+    // Create socket pairs for each worker
+    for (int i = 0; i < num_workers; i++) {
+        int sockets[2];
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == -1) {
+            perror("Failed to create socket pair");
+            return 1;
+        }
+        pool->unix_sockets[i] = sockets[0]; // Parent keeps sockets[0]
+        // Worker will use sockets[1]
+
+        // Fork worker process
+        pid_t pid = fork();
+        if (pid == -1) {
+            perror("Failed to fork worker");
+            close(sockets[0]);
+            close(sockets[1]);
+            return 1;
+        }
+
+        if (pid == 0) {
+            // Child process - become a worker
+            close(sockets[0]); // Close parent's end
+            return run_worker(i, sockets[1], app_module, app_name);
+        } else {
+            // Parent process
+            pool->worker_pids[i] = pid;
+            close(sockets[1]); // Close worker's end
+        }
+    }
+
+    return 0;
+}
+
+void free_worker_pool(struct WorkerPool *pool) {
+    for (int i = 0; i < pool->num_workers; i++) {
+        if (pool->worker_pids[i] != -1) {
+            kill(pool->worker_pids[i], SIGTERM);
+        }
+        if (pool->unix_sockets[i] != -1) {
+            close(pool->unix_sockets[i]);
+        }
     }
 }
 
@@ -288,186 +374,41 @@ int main(int argc, char *argv[]) {
 
     printf("Starting nibiru with %d worker(s)\n", num_workers);
 
-    // TODO: Use num_workers to create worker pool (nb-ar3)
-
     int status;
 
-    // TODO: Rename to preflight after forking is actually working.
-    // A preflight worker to validate that a valid application was specified.
-    struct WorkerState worker;
-    status = initialize_worker(&worker, app_module, app_name);
+    // Preflight validation - create a temporary worker to validate the
+    // application
+    struct WorkerState preflight_worker;
+    status = initialize_worker(&preflight_worker, app_module, app_name);
     if (status != 0) {
-        free_worker(&worker);
+        free_worker(&preflight_worker);
+        return 1;
+    }
+    free_worker(&preflight_worker); // Clean up preflight worker
+
+    // Initialize the worker pool
+    struct WorkerPool worker_pool;
+    status =
+        initialize_worker_pool(&worker_pool, num_workers, app_module, app_name);
+    if (status != 0) {
+        printf("Failed to initialize worker pool\n");
+        free_worker_pool(&worker_pool);
         return 1;
     }
 
-    /*
-     * Initialize Lua.
-     */
-    // lua_State *lua_state = luaL_newstate();
-    // luaL_openlibs(lua_state);
-    //
-    // // Load the bootstrap module to get the WSGI callable.
-    // int bootstrap_reference = nibiru_load_registered_lua_function(
-    //     lua_state, "nibiru.server.boot", "bootstrap");
-    // if (bootstrap_reference == -1) {
-    //     return 1;
-    // }
-    //
-    // lua_rawgeti(lua_state, LUA_REGISTRYINDEX, bootstrap_reference);
-    // lua_pushstring(lua_state, app_module);
-    // lua_pushstring(lua_state, app_name);
-    // status = lua_pcall(lua_state, 2, 1, 0);
-    // if (status != LUA_OK) {
-    //     printf("Error: %s\n", lua_tostring(lua_state, -1));
-    //     lua_close(lua_state);
-    //     return 1;
-    // }
-    // status = is_callable(lua_state);
-    // if (status == 0) {
-    //     printf("`%s` is not a valid callable.\n", app_name);
-    //     lua_close(lua_state);
-    //     return 1;
-    // }
-    // int application_reference = luaL_ref(lua_state, LUA_REGISTRYINDEX);
-    //
-    // // Load the connection handler.
-    // int handle_connection_reference = nibiru_load_registered_lua_function(
-    //     lua_state, "nibiru.server.connector", "handle_connection");
-    // if (handle_connection_reference == -1) {
-    //     return 1;
-    // }
+    // Worker pool initialized successfully
+    printf("Worker pool initialized with %d workers\n",
+           worker_pool.num_workers);
 
-    /*
-     * Start network connections.
-     */
-    struct addrinfo hints;
-    struct addrinfo *server_info;
+    // TODO: Implement main server loop with FD passing and load balancing
+    // (nb-i1c, nb-x43, nb-1rj)
 
-    memset(&hints, 0, sizeof(hints));
-    // AI_PASSIVE because we're going to bind instead of using a hostname
-    // for getaddrinfo.
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = AF_UNSPEC; // IPv4 or IPv6
-    hints.ai_socktype = SOCK_STREAM;
-
-    status = getaddrinfo(NULL, port, &hints, &server_info);
-    if (status != 0) {
-        fprintf(stderr, "Failed to get server information: %s\n",
-                gai_strerror(status));
-        return 1;
+    // For now, just wait for workers (they will exit on their own)
+    // In the future, this will be the main server loop
+    for (int i = 0; i < num_workers; i++) {
+        waitpid(worker_pool.worker_pids[i], NULL, 0);
     }
 
-    struct addrinfo *current_server_info;
-    int listen_socket_fd;
-    for (current_server_info = server_info; current_server_info != NULL;
-         current_server_info = current_server_info->ai_next) {
-        listen_socket_fd = socket(current_server_info->ai_family,
-                                  current_server_info->ai_socktype,
-                                  current_server_info->ai_protocol);
-        if (listen_socket_fd == -1) {
-            continue;
-        }
-
-        // Allow reuse of addresses to avoid TIME_WAIT issues when restarting.
-        int opt = 1;
-        setsockopt(listen_socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt,
-                   sizeof(opt));
-
-        status = bind(listen_socket_fd, current_server_info->ai_addr,
-                      current_server_info->ai_addrlen);
-        if (status == -1) {
-            close(listen_socket_fd);
-            continue;
-        }
-
-        break;
-    }
-
-    freeaddrinfo(server_info);
-
-    if (current_server_info == NULL) {
-        perror("nibiru error");
-        exit(1);
-    }
-
-    int backlog = 128; // `man 2 listen` says max is 128.
-    status = listen(listen_socket_fd, backlog);
-    if (status == -1) {
-        close(listen_socket_fd);
-        perror("nibiru error");
-        exit(1);
-    }
-
-    printf("Listening on %s...\n", port);
-
-    // TODO: This should probably be much larger and configurable.
-    int receive_buffer_size = 10000;
-    char receive_buffer[receive_buffer_size];
-
-    int accepted_socket_fd;
-    struct sockaddr_storage accepted_socket_storage;
-    socklen_t storage_size = sizeof(accepted_socket_storage);
-    while (1) {
-        accepted_socket_fd =
-            accept(listen_socket_fd,
-                   (struct sockaddr *)&accepted_socket_storage, &storage_size);
-        if (accepted_socket_fd == -1) {
-            perror("nibiru error");
-            continue;
-        }
-
-        // TODO: This is serial for now. It would be easiest to do a forking
-        // server, but I think that would be slow. Don't worry about this until
-        // Lua is integrated.
-
-        int bytes_received =
-            recv(accepted_socket_fd, receive_buffer, receive_buffer_size, 0);
-        if (bytes_received > 0) {
-            // Add null to terminate the C string from Lua's point of view.
-            // TODO: There is probably a bug here. If the bytes received is
-            // exactly the same size as the buffer size, then setting at this
-            // address will write outside of the buffer's actual memory.
-            receive_buffer[bytes_received] = '\0';
-        } else {
-            // TODO: 0 is closed connection, -1 is error. Handle those.
-        }
-
-        // Add handle_connection back to the Lua stack.
-        lua_rawgeti(worker.lua_state, LUA_REGISTRYINDEX,
-                    worker.handle_connection_reference);
-
-        lua_rawgeti(worker.lua_state, LUA_REGISTRYINDEX,
-                    worker.application_reference);
-        lua_pushstring(worker.lua_state, receive_buffer);
-
-        status = lua_pcall(worker.lua_state, 2, 1, 0);
-        if (status != LUA_OK) {
-            printf("Error: %s\n", lua_tostring(worker.lua_state, -1));
-            free_worker(&worker);
-            return 1;
-        }
-
-        size_t response_length;
-        const char *response =
-            lua_tolstring(worker.lua_state, -1, &response_length);
-
-        // printf("%s\n", response);
-        // printf("%zu\n", response_length);
-        int bytes_sent = send(accepted_socket_fd, response, response_length, 0);
-        if (bytes_sent == -1) {
-            // TODO: handle error
-        }
-
-        // Only pop after C has the chance to do something. If popped early,
-        // there is a chance that the Lua GC kicks in and frees the memory.
-        lua_pop(worker.lua_state, 1);
-
-        close(accepted_socket_fd);
-    }
-
-    close(listen_socket_fd);
-    free_worker(&worker);
-
+    free_worker_pool(&worker_pool);
     return 0;
 }
