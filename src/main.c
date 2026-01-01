@@ -1,4 +1,3 @@
-#include <bsd/string.h> // for strlcpy on some systems
 #include <errno.h>
 #include <lauxlib.h>
 #include <libgen.h>
