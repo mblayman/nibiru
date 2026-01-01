@@ -2,6 +2,16 @@
 
 A way out there idea deserves a way out there name
 
+## Quick Start
+
+Get started with Nibiru in minutes:
+
+1. Install: `luarocks install nibiru`
+2. Create your first app following the [Getting Started Guide](docs/getting-started.md)
+3. Run: `nibiru run myapp:app`
+
+📖 **[Full Documentation](docs/getting-started.md)** | 📋 **[Command Reference](docs/commands.md)**
+
 ## Plan
 
 Write a Lua webserver from scratch. Only use code that I have written myself.
