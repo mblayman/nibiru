@@ -725,8 +725,6 @@ int main(int argc, char *argv[]) {
             if (completion == 1) {
                 // Worker completed a connection
                 worker_pool.connection_counts[i]--;
-                printf("Worker %d completed connection (count now: %d)\n", i,
-                       worker_pool.connection_counts[i]);
             } else if (completion == -1) {
                 // Worker socket closed - worker may have died
                 fprintf(stderr, "Worker %d socket closed unexpectedly\n", i);
@@ -751,7 +749,7 @@ int main(int argc, char *argv[]) {
 
         // Select worker with least connections
         int selected_worker = find_least_loaded_worker(&worker_pool);
-        printf("Accepted connection, sending to worker %d\n", selected_worker);
+        // Connection routed to worker
 
         // Send FD to the selected worker
         int send_status = send_fd_to_worker(
@@ -763,8 +761,7 @@ int main(int argc, char *argv[]) {
         } else {
             // Track connection count for load balancing
             worker_pool.connection_counts[selected_worker]++;
-            printf("Worker %d now has %d connections\n", selected_worker,
-                   worker_pool.connection_counts[selected_worker]);
+            // Connection tracked
         }
 
         // Close our copy of the client FD (worker has it now)
