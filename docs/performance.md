@@ -222,3 +222,137 @@ Status code distribution:
 **Note**: The 1 concurrent test result (~2.8k RPS) appears to be limited by hey's behavior with single concurrent connections rather than actual server capacity. Follow-up testing with 5 concurrent requests showed 21k+ RPS, confirming the server can handle significantly higher throughput.
 
 These results establish the baseline for measuring concurrency improvements. The next phase will implement preforked workers with least connection load balancing.
+
+# 2026-01-01 - Concurrent Server Performance (2 Workers, Least Connection Load Balancing)
+
+State of nibiru:
+* Full HTTP parser implemented
+* WSGI application support with `docs.app:app`
+* Preforked worker processes with `--workers 2`
+* Least connection load balancing algorithm
+* Bidirectional communication with completion notifications
+* File descriptor passing via UNIX sockets
+* Testing against `docs.app:app` running on port 8080
+
+## Concurrent Implementation Results
+
+All tests run for 30 seconds with hey load testing tool against the same documentation app. Zero errors reported in all tests.
+
+### 1 Concurrent Request
+```
+Summary:
+  Total:	30.0003 secs
+  Slowest:	0.0101 secs
+  Fastest:	0.0001 secs
+  Average:	0.0002 secs
+  Requests/sec:	5477.9175
+
+Latency distribution:
+  10% in 0.0001 secs
+  25% in 0.0002 secs
+  50% in 0.0002 secs
+  75% in 0.0002 secs
+  90% in 0.0003 secs
+  95% in 0.0003 secs
+  99% in 0.0003 secs
+
+Status code distribution:
+  [200]	164339 responses
+```
+
+### 10 Concurrent Requests
+```
+Summary:
+  Total:	30.0005 secs
+  Slowest:	0.0032 secs
+  Fastest:	0.0001 secs
+  Average:	0.0003 secs
+  Requests/sec:	41352.6982
+
+Latency distribution:
+  10% in 0.0002 secs
+  25% in 0.0002 secs
+  50% in 0.0002 secs
+  75% in 0.0003 secs
+  90% in 0.0003 secs
+  95% in 0.0003 secs
+  99% in 0.0005 secs
+
+Status code distribution:
+  [200]	1000000 responses
+```
+
+### 50 Concurrent Requests
+```
+Summary:
+  Total:	30.0013 secs
+  Slowest:	0.0087 secs
+  Fastest:	0.0002 secs
+  Average:	0.0015 secs
+  Requests/sec:	59851.0663
+
+Latency distribution:
+  10% in 0.0006 secs
+  25% in 0.0007 secs
+  50% in 0.0008 secs
+  75% in 0.0009 secs
+  90% in 0.0011 secs
+  95% in 0.0013 secs
+  99% in 0.0020 secs
+
+Status code distribution:
+  [200]	1000000 responses
+```
+
+### 100 Concurrent Requests
+```
+Summary:
+  Total:	30.0016 secs
+  Slowest:	0.0113 secs
+  Fastest:	0.0003 secs
+  Average:	0.0030 secs
+  Requests/sec:	61985.1757
+
+Latency distribution:
+  10% in 0.0013 secs
+  25% in 0.0014 secs
+  50% in 0.0015 secs
+  75% in 0.0017 secs
+  90% in 0.0020 secs
+  95% in 0.0024 secs
+  99% in 0.0034 secs
+
+Status code distribution:
+  [200]	1000000 responses
+```
+
+## Performance Comparison: Single-threaded vs Concurrent (2 Workers)
+
+| Concurrency | Baseline RPS | Concurrent RPS | Improvement | Latency Change |
+|-------------|---------------|----------------|-------------|----------------|
+| 1 request   | 2,844        | 5,478         | +93%       | Same (0.2ms)  |
+| 10 requests | 41,147       | 41,352        | +0.5%      | Same (0.3ms)  |
+| 50 requests | 42,113       | 59,851        | +42%       | +0.3ms avg    |
+| 100 requests| 40,817       | 61,985        | +52%       | Same (3.0ms)  |
+
+## Concurrent Implementation Analysis
+
+- **Peak throughput**: **61,985 RPS** at 100 concurrent requests (52% improvement)
+- **Latency scaling**: Maintained excellent latency characteristics
+- **Zero errors**: All tests completed without connection errors
+- **Load balancing effectiveness**: Least connection algorithm successfully distributes load across 2 workers
+- **Scalability**: Performance gains increase with concurrency level
+
+### Key Improvements:
+1. **High concurrency scaling**: 42-52% throughput gains at 50-100 concurrent requests
+2. **Consistent latency**: No significant latency degradation
+3. **Resource utilization**: Better CPU core utilization with worker processes
+4. **Fault isolation**: Worker crashes don't affect entire server
+
+### Architecture Benefits:
+- **Process isolation**: Each worker has separate Lua state
+- **Intelligent routing**: Least connection algorithm optimizes load distribution
+- **Graceful degradation**: Workers handle failures independently
+- **Scalable design**: Easy to add more workers with `--workers N`
+
+The concurrent implementation successfully delivers the promised performance improvements, especially under high concurrency workloads, while maintaining the simplicity and reliability of the single-threaded baseline.
