@@ -44,3 +44,6 @@ luac.out
 *.rock
 /out
 .env
+
+# C
+test/test_runner

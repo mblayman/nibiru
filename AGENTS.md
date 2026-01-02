@@ -8,6 +8,8 @@
 - **Deps**: `make deps` (installs luatest testing framework)
 - **Test all**: `luatest tests/`
 - **Test single**: `luatest tests/test_filename.lua` (e.g., `luatest tests/test_template.lua`)
+- **Test C**: `make test-c` (runs Unity tests for C functions)
+- **Test single C**: `make -C test unity` (runs C test suite)
 - **Format Lua**: `stylua lua/` (4 spaces, 88 columns, Unix endings per .stylua.toml)
 - **Format C**: `make format` (clang-format with LLVM style, 4-space indentation)
 - **Lint**: Use Lua LSP with .luarc.json for static analysis
@@ -177,15 +179,21 @@ history/
 
 ### Testing
 
-- **Framework**: Use luatest framework (`make deps` to install)
+- **Framework**: Use luatest for Lua (`make deps` to install), Unity for C
 - **Coverage**: 100% statement coverage for all code
-- **Structure**: `tests/` directory mirroring `lua/` structure
-- **Naming**: `test_filename.lua`, individual tests with `::` syntax (e.g., `tests/test_tokenizer.lua::test_literal_string`)
+- **Structure**:
+  - `tests/` directory for Lua tests (mirroring `lua/` structure)
+  - `test/` directory for C tests
+- **Naming**:
+  - Lua: `test_filename.lua`, individual tests with `::` syntax
+  - C: `test_function_name` in `test/test_parse.c`
 - **Scope**: Unit tests, integration tests, performance tests
 - **Template testing**: Both compilation and runtime rendering
 - **Safety**: Mock unsafe operations (file I/O, network, etc.)
 - **Mandatory**: Tests required for all code changes
-- **Run tests**: `luatest tests/` or `luatest tests/test_specific.lua`
+- **Run tests**:
+  - Lua: `luatest tests/` or `luatest tests/test_specific.lua`
+  - C: `make test-c` (comprehensive C unit tests for parsing functions)
 
 ### Linting/Quality
 

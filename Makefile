@@ -17,6 +17,7 @@ exe:
 	cc \
 	$(CFLAGS) \
 	src/main.c \
+	src/parse.c \
 	-o nibiru
 
 run: build
@@ -27,6 +28,9 @@ clean:
 
 deps:
 	luarocks --tree .luarocks install luatest
+
+test-c:
+	$(MAKE) -C test run
 
 format:
 	clang-format -i src/**.c

@@ -16,6 +16,8 @@
 #define _GNU_SOURCE
 #include <string.h>
 
+#include "parse.h"
+
 // Function declarations
 int is_supported_method(const char *method, int method_len);
 int is_supported_version(const char *version, int version_len);
@@ -221,8 +223,9 @@ int run_worker(int worker_id, int fd_socket, int completion_socket,
                 &method_len, &target_len, &version_len);
 
             // Handle parsing errors
-            if (parse_result == -1) {
-                // Invalid request line
+            if (parse_result == -1 || parse_result == -3) {
+                // Malformed request: no CRLF found (-1) or leading whitespace
+                // (-3)
                 const char *error_response = "HTTP/1.1 400 Bad Request\r\n\r\n";
                 send(client_fd, error_response, strlen(error_response), 0);
                 close(client_fd);
@@ -585,111 +588,6 @@ void setup_rocks_paths() {
     // Set the environment variables
     setenv("LUA_PATH", new_lua_path, 1);
     setenv("LUA_CPATH", new_lua_cpath, 1);
-}
-
-// Supported HTTP methods (same as Lua parser)
-const char *SUPPORTED_METHODS[] = {"GET",     "HEAD",   "POST",
-                                   "PUT",     "DELETE", "CONNECT",
-                                   "OPTIONS", "TRACE",  "PATCH"};
-const int NUM_SUPPORTED_METHODS = 9;
-
-// Supported HTTP versions
-const char *SUPPORTED_VERSIONS[] = {"HTTP/1.1"};
-const int NUM_SUPPORTED_VERSIONS = 1;
-
-// Check if method is supported (method may not be null-terminated)
-int is_supported_method(const char *method, int method_len) {
-    for (int i = 0; i < NUM_SUPPORTED_METHODS; i++) {
-        const char *supported = SUPPORTED_METHODS[i];
-        int supported_len = strlen(supported);
-        if (method_len == supported_len &&
-            strncmp(method, supported, method_len) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-// Check if version is supported (version may not be null-terminated)
-int is_supported_version(const char *version, int version_len) {
-    for (int i = 0; i < NUM_SUPPORTED_VERSIONS; i++) {
-        const char *supported = SUPPORTED_VERSIONS[i];
-        int supported_len = strlen(supported);
-        if (version_len == supported_len &&
-            strncmp(version, supported, version_len) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-// Parse HTTP request line from buffer
-// Returns: 0 on success, -1 on parse error, -2 on validation error
-// method, target, version point to positions in the original buffer
-int parse_request_line(const char *buffer, int buffer_len, const char **method,
-                       const char **target, const char **version,
-                       int *method_len, int *target_len, int *version_len) {
-    // Find the end of the request line (\r\n) - HTTP spec requires CRLF
-    const char *line_end = memmem(buffer, buffer_len, "\r\n", 2);
-    if (!line_end || line_end == buffer) {
-        return -1; // No line ending found or empty line
-    }
-
-    // Parse the line manually to avoid copying
-    const char *pos = buffer;
-    const char *end = line_end;
-
-    // HTTP spec requires method to start immediately (no leading whitespace)
-    if (*pos == ' ')
-        return -1;
-
-    // Parse method
-    *method = pos;
-    while (pos < end && *pos != ' ')
-        pos++;
-    *method_len = pos - *method;
-    if (*method_len == 0)
-        return -1;
-
-    // Skip spaces after method
-    while (pos < end && *pos == ' ')
-        pos++;
-    if (pos >= end)
-        return -1;
-
-    // Parse target
-    *target = pos;
-    while (pos < end && *pos != ' ')
-        pos++;
-    *target_len = pos - *target;
-    if (*target_len == 0)
-        return -1;
-
-    // Skip spaces after target
-    while (pos < end && *pos == ' ')
-        pos++;
-    if (pos >= end)
-        return -1;
-
-    // Parse version (stops at \r)
-    *version = pos;
-    while (pos < end && *pos != '\r')
-        pos++;
-    *version_len = pos - *version;
-    if (*version_len == 0)
-        return -1;
-
-    // Verify CRLF follows immediately
-    if (pos >= end || *(pos + 1) != '\n')
-        return -1; // Missing or invalid CRLF
-
-    // Validate method and version
-    if (!is_supported_method(*method, *method_len))
-        return -2;
-    if (!is_supported_version(*version, *version_len))
-        return -2;
-
-    return 0; // Success
 }
 
 int main(int argc, char *argv[]) {
