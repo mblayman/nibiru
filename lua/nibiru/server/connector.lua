@@ -26,20 +26,15 @@ end
 --- Handle data received on the network connection.
 ---
 --- @param application function The WSGI application callable
---- @param data string The inbound data received on the network connection
+--- @param method string The HTTP method
+--- @param target string The request target/path
+--- @param version string The HTTP version
+--- @param remaining_data string The remaining HTTP data after the request line
 --- @return string response The outbound data to send on the connection
-function connector.handle_connection(application, data)
-    local environ, err = parser.parse(data)
+function connector.handle_connection(application, method, target, version, remaining_data)
+    local environ, err = parser.parse(method, target, version, remaining_data)
 
-    if err then
-        if err == ParserErrors.INVALID_REQUEST_LINE then
-            return "HTTP/1.1 400 Bad Request\r\n\r\n"
-        elseif err == ParserErrors.VERSION_NOT_SUPPORTED then
-            return "HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n"
-        elseif err == ParserErrors.METHOD_NOT_IMPLEMENTED then
-            return "HTTP/1.1 501 Not Implemented\r\n\r\n"
-        end
-    end
+    -- Note: Error handling for invalid request lines is now done in C
 
     -- TODO: The application callable returns an iterable. The spec says that
     -- this data should not be buffered and should be sent immediately, but I'm

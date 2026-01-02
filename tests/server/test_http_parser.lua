@@ -6,9 +6,12 @@ local tests = {}
 
 -- A valid request is parsed.
 function tests.test_valid_request()
-    local data = "GET / HTTP/1.1\r\n\r\n"
+    local method = "GET"
+    local target = "/"
+    local version = "HTTP/1.1"
+    local remaining_data = "\r\n"
 
-    local environ, err = parser.parse(data)
+    local environ, err = parser.parse(method, target, version, remaining_data)
 
     assert.is_nil(err)
     if environ == nil then
@@ -20,34 +23,7 @@ function tests.test_valid_request()
     assert.equal("HTTP/1.1", environ.SERVER_PROTOCOL)
 end
 
--- An invalid request line errors.
-function tests.test_invalid_request()
-    local data = "invalid"
-
-    local environ, err = parser.parse(data)
-
-    assert.equal(ParserErrors.INVALID_REQUEST_LINE, err)
-    assert.is_nil(environ)
-end
-
--- An unsupported version errors.
-function tests.test_unsupported_version()
-    local data = "GET / HTTP/99\r\n"
-
-    local environ, err = parser.parse(data)
-
-    assert.equal(ParserErrors.VERSION_NOT_SUPPORTED, err)
-    assert.is_nil(environ)
-end
-
--- An unsupported method errors.
-function tests.test_unsupported_method()
-    local data = "INVALID / HTTP/1.1\r\n"
-
-    local environ, err = parser.parse(data)
-
-    assert.equal(ParserErrors.METHOD_NOT_IMPLEMENTED, err)
-    assert.is_nil(environ)
-end
+-- Parser now only accepts pre-validated inputs, so error tests are removed
+-- (validation is done in C)
 
 return tests

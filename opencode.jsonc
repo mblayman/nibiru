@@ -7,7 +7,7 @@
       "enabled": true
     }
   },
-  "permissions": {
+  "permission": {
     "bash": {
       "git push": "ask"
     }

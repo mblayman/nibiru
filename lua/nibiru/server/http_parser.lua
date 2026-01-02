@@ -62,20 +62,15 @@ local SUPPORTED_METHODS = {
     ["PATCH"] = true,
 }
 
---- Parse the raw HTTP data into a WSGI environ table.
---- @param data string HTTP request data from the network
---- @return table? environ A WSGI environ
---- @return ParserErrors? err A parser error
-function parser.parse(data)
-    local method, target, version = string.match(data, REQUEST_LINE_PATTERN)
-    if not method then
-        return nil, ParserErrors.INVALID_REQUEST_LINE
-    elseif not SUPPORTED_VERSIONS[version] then
-        return nil, ParserErrors.VERSION_NOT_SUPPORTED
-    elseif not SUPPORTED_METHODS[method] then
-        return nil, ParserErrors.METHOD_NOT_IMPLEMENTED
-    end
-
+--- Parse the HTTP data into a WSGI environ table.
+--- @param method string The HTTP method (pre-parsed)
+--- @param target string The request target/path (pre-parsed)
+--- @param version string The HTTP version (pre-parsed)
+--- @param data string The remaining HTTP data after the request line
+--- @return table environ A WSGI environ
+--- @return nil No errors are returned since validation is done in C
+function parser.parse(method, target, version, data)
+    -- Note: Method and version validation is now done in C
     local environ = {
         REQUEST_METHOD = method,
         -- This is ignored for now. The nibiru server assumes that it is mounted
