@@ -103,9 +103,9 @@ When you run `nibiru run myapp:app`, the server:
 
 ### Request Processing
 
-- **Parent Process**: Accepts connections and distributes them to workers
-- **Worker Processes**: Handle HTTP parsing and execute your WSGI application
-- **Load Balancing**: Uses least-connection algorithm to distribute load fairly
+- **Parent Process**: Binds listening socket and forks workers
+- **Worker Processes**: Accept connections directly and execute your WSGI application
+- **Load Distribution**: OS kernel serializes accept() calls across workers
 - **Isolation**: Each worker runs in its own process with separate Lua state
 
 ### Shutdown

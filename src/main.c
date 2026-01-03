@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <lauxlib.h>
 #include <libgen.h>
 #include <limits.h>
@@ -17,6 +18,12 @@
 #include <string.h>
 
 #include "parse.h"
+
+// Feature detection for accept4 (Linux-specific with _GNU_SOURCE)
+#if defined(__linux__) && defined(_GNU_SOURCE)
+#define HAVE_ACCEPT4 1
+int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags);
+#endif
 
 // Function declarations
 int is_supported_method(const char *method, int method_len);
@@ -42,6 +49,12 @@ volatile sig_atomic_t shutdown_requested = 0;
 // Signal handler for graceful shutdown
 void signal_handler(int signum) { shutdown_requested = 1; }
 
+// Worker shutdown flag
+volatile sig_atomic_t worker_shutdown_requested = 0;
+
+// Signal handler for worker shutdown
+void worker_signal_handler(int signum) { worker_shutdown_requested = 1; }
+
 // Forward declarations
 int send_completion_to_parent(int unix_socket);
 int receive_completion_from_worker(int unix_socket);
@@ -51,10 +64,6 @@ int receive_fd_from_parent(int unix_socket);
 struct WorkerPool {
     int num_workers;
     pid_t worker_pids[MAX_WORKERS];
-    int fd_sockets[MAX_WORKERS];         // For sending FDs to workers
-    int completion_sockets[MAX_WORKERS]; // For receiving completion
-                                         // notifications from workers
-    int connection_counts[MAX_WORKERS];  // For least connection load balancing
 };
 
 /**
@@ -170,8 +179,19 @@ void free_worker(struct WorkerState *worker) {
     }
 }
 
-int run_worker(int worker_id, int fd_socket, int completion_socket,
-               const char *app_module, const char *app_name) {
+int run_worker(int worker_id, int listen_socket_fd, const char *app_module,
+               const char *app_name) {
+    // Set up signal handler for graceful shutdown
+    struct sigaction sa;
+    sa.sa_handler = worker_signal_handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGTERM, &sa, NULL);
+
+    // Ignore SIGPIPE (broken pipe from client disconnects)
+    sa.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &sa, NULL);
+
     // Initialize worker state
     struct WorkerState worker;
     int status = initialize_worker(&worker, app_module, app_name);
@@ -180,26 +200,28 @@ int run_worker(int worker_id, int fd_socket, int completion_socket,
         return 1;
     }
 
-    // Worker main loop - receive FDs and handle connections
+    // Worker main loop - accept connections and handle requests
     while (1) {
-        // Receive file descriptor from parent
-        int client_fd = receive_fd_from_parent(fd_socket);
-        if (client_fd == -2) {
-            // Parent closed the socket - exit gracefully
-            printf("Worker %d: Parent exited, shutting down\n", worker_id);
-            break;
-        }
-        if (client_fd == -2) {
-            // Parent closed the socket - exit gracefully
-            printf("Worker %d: Parent exited, shutting down\n", worker_id);
-            break;
+        // Accept new connection
+        struct sockaddr_storage client_addr;
+        socklen_t addr_size = sizeof(client_addr);
+        int client_fd;
+        client_fd = accept(listen_socket_fd, (struct sockaddr *)&client_addr,
+                           &addr_size);
+        if (client_fd != -1) {
+            fcntl(client_fd, F_SETFD, FD_CLOEXEC);
         }
         if (client_fd == -1) {
-            fprintf(stderr, "Worker %d: Failed to receive FD (errno=%d)\n",
-                    worker_id, errno);
-            // Small delay to prevent busy looping on persistent errors
-            usleep(10000);
-            continue;
+            if (errno == EINTR) {
+                if (worker_shutdown_requested) {
+                    break;
+                }
+                continue; // Interrupted, try again
+            }
+            // Socket closed or error - exit gracefully
+            printf("Worker %d: Accept failed or socket closed, shutting down\n",
+                   worker_id);
+            break;
         }
 
         // Processing HTTP request
@@ -289,77 +311,18 @@ int run_worker(int worker_id, int fd_socket, int completion_socket,
         }
 
         close(client_fd);
-
-        // Send completion notification back to parent
-        if (send_completion_to_parent(completion_socket) != 0) {
-            fprintf(stderr,
-                    "Worker %d: Failed to send completion notification\n",
-                    worker_id);
-        }
     }
 
     free_worker(&worker);
     return 0;
 }
 
-int initialize_worker_pool(struct WorkerPool *pool, int num_workers,
-                           const char *app_module, const char *app_name) {
+int initialize_worker_pool(struct WorkerPool *pool, int num_workers) {
     pool->num_workers = num_workers;
 
-    // Initialize arrays
+    // Initialize pids
     for (int i = 0; i < num_workers; i++) {
         pool->worker_pids[i] = -1;
-        pool->fd_sockets[i] = -1;
-        pool->completion_sockets[i] = -1;
-        pool->connection_counts[i] = 0;
-    }
-
-    // Create socket pairs for each worker (two pairs: one for FDs, one for
-    // completion)
-    for (int i = 0; i < num_workers; i++) {
-        // FD passing socket pair
-        int fd_sockets[2];
-        if (socketpair(AF_UNIX, SOCK_STREAM, 0, fd_sockets) == -1) {
-            perror("Failed to create FD socket pair");
-            return 1;
-        }
-
-        // Completion notification socket pair
-        int completion_sockets[2];
-        if (socketpair(AF_UNIX, SOCK_STREAM, 0, completion_sockets) == -1) {
-            perror("Failed to create completion socket pair");
-            close(fd_sockets[0]);
-            close(fd_sockets[1]);
-            return 1;
-        }
-
-        pool->fd_sockets[i] = fd_sockets[0]; // Parent sends FDs
-        pool->completion_sockets[i] =
-            completion_sockets[0]; // Parent receives completions
-
-        // Fork worker process
-        pid_t pid = fork();
-        if (pid == -1) {
-            perror("Failed to fork worker");
-            close(fd_sockets[0]);
-            close(fd_sockets[1]);
-            close(completion_sockets[0]);
-            close(completion_sockets[1]);
-            return 1;
-        }
-
-        if (pid == 0) {
-            // Child process - become a worker
-            close(fd_sockets[0]);         // Close parent's FD socket
-            close(completion_sockets[0]); // Close parent's completion socket
-            return run_worker(i, fd_sockets[1], completion_sockets[1],
-                              app_module, app_name);
-        } else {
-            // Parent process
-            pool->worker_pids[i] = pid;
-            close(fd_sockets[1]);         // Close worker's FD socket
-            close(completion_sockets[1]); // Close worker's completion socket
-        }
     }
 
     return 0;
@@ -370,28 +333,7 @@ void free_worker_pool(struct WorkerPool *pool) {
         if (pool->worker_pids[i] != -1) {
             kill(pool->worker_pids[i], SIGTERM);
         }
-        if (pool->fd_sockets[i] != -1) {
-            close(pool->fd_sockets[i]);
-        }
-        if (pool->completion_sockets[i] != -1) {
-            close(pool->completion_sockets[i]);
-        }
     }
-}
-
-// Find worker with least connections (least connection load balancing)
-int find_least_loaded_worker(struct WorkerPool *pool) {
-    int min_connections = INT_MAX;
-    int selected_worker = 0;
-
-    for (int i = 0; i < pool->num_workers; i++) {
-        if (pool->connection_counts[i] < min_connections) {
-            min_connections = pool->connection_counts[i];
-            selected_worker = i;
-        }
-    }
-
-    return selected_worker;
 }
 
 // Send completion notification from worker to parent
@@ -673,16 +615,6 @@ int main(int argc, char *argv[]) {
     }
     free_worker(&preflight_worker); // Clean up preflight worker
 
-    // Initialize the worker pool
-    struct WorkerPool worker_pool;
-    status =
-        initialize_worker_pool(&worker_pool, num_workers, app_module, app_name);
-    if (status != 0) {
-        printf("Failed to initialize worker pool\n");
-        free_worker_pool(&worker_pool);
-        return 1;
-    }
-
     // Set up signal handlers for graceful shutdown
     struct sigaction sa;
     sa.sa_handler = signal_handler;
@@ -710,7 +642,6 @@ int main(int argc, char *argv[]) {
     if (addr_status != 0) {
         fprintf(stderr, "Failed to get server information: %s\n",
                 gai_strerror(addr_status));
-        free_worker_pool(&worker_pool);
         return 1;
     }
 
@@ -743,7 +674,6 @@ int main(int argc, char *argv[]) {
 
     if (current_server_info == NULL) {
         perror("Failed to bind socket");
-        free_worker_pool(&worker_pool);
         return 1;
     }
 
@@ -752,66 +682,41 @@ int main(int argc, char *argv[]) {
     if (listen_status == -1) {
         perror("Failed to listen");
         close(listen_socket_fd);
-        free_worker_pool(&worker_pool);
         return 1;
     }
 
     printf("Server listening on %s...\n", port);
 
-    // Main server loop - accept connections and handle worker communications
-    while (!shutdown_requested) {
-        // Check for completion notifications from all workers
-        for (int i = 0; i < worker_pool.num_workers; i++) {
-            int completion = receive_completion_from_worker(
-                worker_pool.completion_sockets[i]);
-            if (completion == 1) {
-                // Worker completed a connection
-                worker_pool.connection_counts[i]--;
-            } else if (completion == -1) {
-                // Worker socket closed - worker may have died
-                fprintf(stderr, "Worker %d socket closed unexpectedly\n", i);
-            }
+    // Initialize the worker pool
+    struct WorkerPool worker_pool;
+    status = initialize_worker_pool(&worker_pool, num_workers);
+    if (status != 0) {
+        printf("Failed to initialize worker pool\n");
+        free_worker_pool(&worker_pool);
+        return 1;
+    }
+
+    // Fork worker processes
+    for (int i = 0; i < num_workers; i++) {
+        pid_t pid = fork();
+        if (pid == -1) {
+            perror("Failed to fork worker");
+            close(listen_socket_fd);
+            free_worker_pool(&worker_pool);
+            return 1;
         }
-
-        // Accept new connections
-        struct sockaddr_storage client_addr;
-        socklen_t addr_size = sizeof(client_addr);
-
-        int client_fd = accept(listen_socket_fd,
-                               (struct sockaddr *)&client_addr, &addr_size);
-        if (client_fd == -1) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // No connection available, continue checking worker messages
-                usleep(1000); // Small delay to avoid busy waiting
-                continue;
-            }
-            // Don't report EINTR errors during shutdown (expected when user
-            // presses Ctrl+C)
-            if (!(errno == EINTR && shutdown_requested)) {
-                perror("Accept failed");
-            }
-            continue;
-        }
-
-        // Select worker with least connections
-        int selected_worker = find_least_loaded_worker(&worker_pool);
-        // Connection routed to worker
-
-        // Send FD to the selected worker
-        int send_status = send_fd_to_worker(
-            worker_pool.fd_sockets[selected_worker], client_fd);
-        if (send_status != 0) {
-            fprintf(stderr, "Failed to send FD to worker %d\n",
-                    selected_worker);
-            close(client_fd);
+        if (pid == 0) {
+            // Child process - become a worker
+            return run_worker(i, listen_socket_fd, app_module, app_name);
         } else {
-            // Track connection count for load balancing
-            worker_pool.connection_counts[selected_worker]++;
-            // Connection tracked
+            // Parent process - record worker PID
+            worker_pool.worker_pids[i] = pid;
         }
+    }
 
-        // Close our copy of the client FD (worker has it now)
-        close(client_fd);
+    // Main server loop - wait for shutdown signal
+    while (!shutdown_requested) {
+        pause();
     }
 
     close(listen_socket_fd);
