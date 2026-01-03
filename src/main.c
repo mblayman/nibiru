@@ -305,7 +305,6 @@ int run_worker(int worker_id, int listen_socket_fd, const char *app_module,
             }
         } else if (bytes_received == 0) {
             // Connection closed by client
-            printf("Worker %d: Connection closed by client\n", worker_id);
         } else {
             perror("Worker: recv failed");
         }
