@@ -22,7 +22,7 @@ build = {
         $(CC) $(CFLAGS) -fPIC -shared -o lua/nibiru_core.so src/libnibiru.c $(LIBFLAG)
 
         # Build binary as executable (not shared library) - don't use LIBFLAG
-        $(CC) $(CFLAGS) -o nibiru src/main.c -llua
+        $(CC) $(CFLAGS) -o nibiru src/main.c src/parse.c -llua
     ]],
 
     install_command = [[
