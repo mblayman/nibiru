@@ -256,8 +256,8 @@ function tests.test_multiline_ordered_list_items()
     assert(ol_count == 1, string.format("Expected 1 ordered list, but found %d", ol_count))
 end
 
--- Test inline raw HTML tags
-function tests.test_inline_raw_html()
+-- Test that inline HTML tags are escaped
+function tests.test_inline_html_escaped()
     local content = [[
 This is <em>emphasized</em> text with <strong>bold</strong> elements.
 
@@ -267,14 +267,15 @@ Also includes <a href="https://example.com">links</a> and <img src="test.jpg" al
     assert.is_nil(err)
     assert.is_string(result.html)
 
-    -- HTML tags should be preserved unescaped
-    assert(result.html:find("<em>emphasized</em>") ~= nil, "em tag should be preserved")
-    assert(result.html:find("<strong>bold</strong>") ~= nil, "strong tag should be preserved")
-    assert(result.html:find('<a href="https://example.com">links</a>') ~= nil, "a tag should be preserved")
-    assert(result.html:find('<img src="test.jpg" alt="image">') ~= nil, "img tag should be preserved")
+    -- HTML tags in regular text should be escaped
+    assert(result.html:find("&lt;em&gt;emphasized&lt;/em&gt;") ~= nil, "em tag should be escaped")
+    assert(result.html:find("&lt;strong&gt;bold&lt;/strong&gt;") ~= nil, "strong tag should be escaped")
+    assert(result.html:find('&lt;a href=&quot;https://example.com&quot;&gt;links&lt;/a&gt;') ~= nil, "a tag should be escaped")
+    assert(result.html:find('&lt;img src=&quot;test.jpg&quot; alt=&quot;image&quot;&gt;') ~= nil, "img tag should be escaped")
 
-    -- Ensure not double-encoded
-    assert(result.html:find("&lt;em&gt;") == nil, "HTML should not be escaped")
+    -- Ensure no unescaped HTML
+    assert(result.html:find("<em>") == nil, "HTML should be escaped")
+    assert(result.html:find("<strong>") == nil, "HTML should be escaped")
 end
 
 -- Test HTML blocks (type 1: pre, script, style, textarea)
@@ -397,6 +398,24 @@ After div.
     assert(result.html:find('<ul>') ~= nil, "ul tag inside HTML should be preserved")
     assert(result.html:find('<li>Item 1</li>') ~= nil, "li tags inside HTML should be preserved")
     assert(result.html:find('</div>') ~= nil, "closing div tag should be preserved")
+end
+
+-- Test that HTML tags in paragraphs are escaped
+function tests.test_html_tags_in_paragraph_escaped()
+    local content = [[D3 uses SVG (Scalable Vector Graphics) to draw its shapes. It's possible to
+create a new <svg> tag on the fly, but I added the following to the HTML
+source code.]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- HTML tags in regular paragraph text should be escaped
+    assert(string.find(result.html, '&lt;svg&gt;', 1, true) ~= nil, "svg tag should be escaped in paragraph")
+    assert(result.html:find('<svg>') == nil, "svg tag should not be preserved unescaped")
+
+    -- Regular markdown should still work
+    assert(result.html:find('<p>') ~= nil, "Should be wrapped in paragraph tags")
 end
 
 -- Test mixed HTML and Markdown

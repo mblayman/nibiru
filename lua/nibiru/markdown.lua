@@ -391,8 +391,8 @@ end
 function parse_inline(text)
     if not text then return "" end
 
-    -- Escape HTML first, but preserve raw HTML elements
-    local result = escape_html_with_raw_preserved(text)
+    -- Escape HTML first
+    local result = escape_html(text)
 
     -- Code spans (escape backticks in content)
     result = result:gsub("`([^`\n]+)`", "<code>%1</code>")
@@ -414,68 +414,6 @@ function parse_inline(text)
     return result
 end
 
---- Escape HTML entities in text, but preserve raw HTML elements
---- @param text string The text to escape
---- @return string The text with HTML entities escaped except for raw HTML elements
-function escape_html_with_raw_preserved(text)
-    if not text then return "" end
-
-    -- First, temporarily replace raw HTML elements with placeholders
-    local result = text
-    local replacements = {}
-    local counter = 0
-
-    -- Helper function to add replacement
-    local function add_replacement(original)
-        counter = counter + 1
-        local placeholder = string.format("RAWHTML_%d", counter)
-        replacements[placeholder] = original
-        return placeholder
-    end
-
-    -- Process HTML comments: <!-- comment -->
-    result = result:gsub("<!%-%-.-%-%->", add_replacement)
-
-    -- Process processing instructions: <? ... ?>
-    result = result:gsub("<%?.-%?>", add_replacement)
-
-    -- Process declarations: <!DOCTYPE ... > etc.
-    result = result:gsub("<!%w.->", add_replacement)
-
-    -- Process CDATA sections: <![CDATA[ ... ]]>
-    result = result:gsub("<!%[CDATA%[.-%]%]>?", add_replacement)
-
-    -- Process self-closing tags: <tag ... />
-    result = result:gsub("<[%w_:][%w_.:%-]*[^>]*/>", add_replacement)
-
-    -- Process closing tags: </tag>
-    result = result:gsub("</[%w_:][%w_.:%-]*>", add_replacement)
-
-    -- Process opening tags: <tag ... >
-    result = result:gsub("<([%w_:][%w_.:%-]*)([^>]*)>", function(tag, rest)
-        local match = "<" .. tag .. rest .. ">"
-        -- Skip if it's already handled as self-closing, closing, or other special tags
-        if not rest:match("/$") and not match:match("^</") and
-           not match:match("^<!") and not match:match("^<%?") then
-            return add_replacement(match)
-        end
-        return match
-    end)
-
-    -- Now escape the remaining HTML
-    result = result:gsub("&", "&amp;")
-                  :gsub("<", "&lt;")
-                  :gsub(">", "&gt;")
-                  :gsub('"', "&quot;")
-                  :gsub("'", "&#39;")
-
-    -- Restore the raw HTML elements
-    for placeholder, original in pairs(replacements) do
-        result = result:gsub(placeholder, original)
-    end
-
-    return result
-end
 
 --- Parse a markdown table structure
 --- @param lines table Array of lines from the markdown text
