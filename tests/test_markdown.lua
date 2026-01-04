@@ -176,6 +176,86 @@ After
     assert(result.html:find("<hr>") ~= nil)
 end
 
+-- Test multi-line list items (bug: continuation lines treated as separate paragraphs)
+function tests.test_multiline_list_items()
+    local content = [[
+* Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
+  tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
+  quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+  consequat.
+* Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore
+  eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+  sunt in culpa qui officia deserunt mollit anim id est laborum.
+]]
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Expected: Two list items in a single unordered list
+    -- The continuation lines should be part of the list items, not separate paragraphs
+    local expected_pattern = "<ul>.-<li>.-</li>.-<li>.-</li>.-</ul>"
+    assert(result.html:match(expected_pattern) ~= nil, "Should contain a single ul with two li elements")
+
+    -- Should not contain paragraph tags between list items
+    -- This would indicate the bug where continuation lines become separate paragraphs
+    local paragraphs_between_lists = result.html:match("<ul>.-</ul>.-<p>.-</p>.-<ul>")
+    assert(paragraphs_between_lists == nil, "Should not have paragraphs between list items - continuation lines should stay in list items")
+
+    -- Count list items - should be exactly 2
+    local li_count = 0
+    for _ in result.html:gmatch("<li>") do
+        li_count = li_count + 1
+    end
+    assert(li_count == 2, string.format("Expected 2 list items, but found %d", li_count))
+
+    -- Count ul tags - should be exactly 1 (single list)
+    local ul_count = 0
+    for _ in result.html:gmatch("<ul>") do
+        ul_count = ul_count + 1
+    end
+    assert(ul_count == 1, string.format("Expected 1 unordered list, but found %d", ul_count))
+end
+
+-- Test multi-line ordered list items (similar to unordered test)
+function tests.test_multiline_ordered_list_items()
+    local content = [[
+1. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
+   tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
+   quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+   consequat.
+2. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore
+   eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+   sunt in culpa qui officia deserunt mollit anim id est laborum.
+]]
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Expected: Two list items in a single ordered list
+    -- The continuation lines should be part of the list items, not separate paragraphs
+    local expected_pattern = "<ol>.-<li>.-</li>.-<li>.-</li>.-</ol>"
+    assert(result.html:match(expected_pattern) ~= nil, "Should contain a single ol with two li elements")
+
+    -- Should not contain paragraph tags between list items
+    -- This would indicate the bug where continuation lines become separate paragraphs
+    local paragraphs_between_lists = result.html:match("<ol>.-</ol>.-<p>.-</p>.-<ol>")
+    assert(paragraphs_between_lists == nil, "Should not have paragraphs between list items - continuation lines should stay in list items")
+
+    -- Count list items - should be exactly 2
+    local li_count = 0
+    for _ in result.html:gmatch("<li>") do
+        li_count = li_count + 1
+    end
+    assert(li_count == 2, string.format("Expected 2 list items, but found %d", li_count))
+
+    -- Count ol tags - should be exactly 1 (single list)
+    local ol_count = 0
+    for _ in result.html:gmatch("<ol>") do
+        ol_count = ol_count + 1
+    end
+    assert(ol_count == 1, string.format("Expected 1 ordered list, but found %d", ol_count))
+end
+
 -- ERROR TESTS --
 
 -- Test invalid input type

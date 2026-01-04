@@ -170,9 +170,28 @@ function parse_markdown(text)
         elseif line:match("^[-*+]%s+") then
             local list_items = {}
             while i <= #lines and lines[i]:match("^[-*+]%s+") do
+                -- Collect all lines for this list item
+                local item_lines = {}
                 local content = lines[i]:gsub("^[-*+]%s+", "")
-                table.insert(list_items, string.format("<li>%s</li>", parse_inline(content)))
+                table.insert(item_lines, content)
                 i = i + 1
+
+                -- Continue collecting continuation lines until we hit a block boundary
+                while i <= #lines and lines[i]:match("%S") and
+                      not lines[i]:match("^#{1,6}%s+") and
+                      not lines[i]:match("^[-*_]{3,}$") and
+                      not lines[i]:match("^>%s*") and
+                      not lines[i]:match("^```") and
+                      not lines[i]:match("^[-*+]%s+") and
+                      not lines[i]:match("^%d+%.%s+") and
+                      not lines[i]:match("^|") do
+                    table.insert(item_lines, lines[i])
+                    i = i + 1
+                end
+
+                -- Join all lines for this list item and parse inline elements
+                local item_content = table.concat(item_lines, "\n")
+                table.insert(list_items, string.format("<li>%s</li>", parse_inline(item_content)))
             end
             table.insert(html_parts, string.format("<ul>%s</ul>", table.concat(list_items)))
 
@@ -180,9 +199,28 @@ function parse_markdown(text)
         elseif line:match("^%d+%.%s+") then
             local list_items = {}
             while i <= #lines and lines[i]:match("^%d+%.%s+") do
+                -- Collect all lines for this list item
+                local item_lines = {}
                 local content = lines[i]:gsub("^%d+%.%s+", "")
-                table.insert(list_items, string.format("<li>%s</li>", parse_inline(content)))
+                table.insert(item_lines, content)
                 i = i + 1
+
+                -- Continue collecting continuation lines until we hit a block boundary
+                while i <= #lines and lines[i]:match("%S") and
+                      not lines[i]:match("^#{1,6}%s+") and
+                      not lines[i]:match("^[-*_]{3,}$") and
+                      not lines[i]:match("^>%s*") and
+                      not lines[i]:match("^```") and
+                      not lines[i]:match("^[-*+]%s+") and
+                      not lines[i]:match("^%d+%.%s+") and
+                      not lines[i]:match("^|") do
+                    table.insert(item_lines, lines[i])
+                    i = i + 1
+                end
+
+                -- Join all lines for this list item and parse inline elements
+                local item_content = table.concat(item_lines, "\n")
+                table.insert(list_items, string.format("<li>%s</li>", parse_inline(item_content)))
             end
             table.insert(html_parts, string.format("<ol>%s</ol>", table.concat(list_items)))
 
