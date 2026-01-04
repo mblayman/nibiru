@@ -123,6 +123,8 @@ function yaml.parse(input)
                                 item_value = item_value:gsub("^%s+", ""):gsub("%s+$", "")
                                 if item_value:sub(1,1) == '"' and item_value:sub(-1) == '"' then
                                     item_value = item_value:sub(2, -2)
+                                elseif item_value:sub(1,1) == "'" and item_value:sub(-1) == "'" then
+                                    item_value = item_value:sub(2, -2)
                                 end
                                 table.insert(array_items, item_value)
                             end
@@ -211,12 +213,16 @@ function parse_value(value)
             item = item:gsub("^%s+", ""):gsub("%s+$", "")
             if item:sub(1,1) == '"' and item:sub(-1) == '"' then
                 item = item:sub(2, -2)
+            elseif item:sub(1,1) == "'" and item:sub(-1) == "'" then
+                item = item:sub(2, -2)
             end
             table.insert(array, item)
         end
         return array
     else
         if value:sub(1,1) == '"' and value:sub(-1) == '"' then
+            value = value:sub(2, -2)
+        elseif value:sub(1,1) == "'" and value:sub(-1) == "'" then
             value = value:sub(2, -2)
         end
         return value

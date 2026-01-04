@@ -182,4 +182,13 @@ categories:
     })
 end
 
+-- Test single-quoted strings
+function tests.test_single_quoted_string()
+    local result, err =
+        yaml.parse("---\ntitle: 'dotfiles: Hone your software tools'\n---")
+    assert.is_nil(err)
+    -- Single quotes should be treated as string delimiters and stripped
+    assert.same(result, { title = "dotfiles: Hone your software tools" })
+end
+
 return tests
