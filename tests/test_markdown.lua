@@ -256,6 +256,187 @@ function tests.test_multiline_ordered_list_items()
     assert(ol_count == 1, string.format("Expected 1 ordered list, but found %d", ol_count))
 end
 
+-- Test inline raw HTML tags
+function tests.test_inline_raw_html()
+    local content = [[
+This is <em>emphasized</em> text with <strong>bold</strong> elements.
+
+Also includes <a href="https://example.com">links</a> and <img src="test.jpg" alt="image">.
+]]
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- HTML tags should be preserved unescaped
+    assert(result.html:find("<em>emphasized</em>") ~= nil, "em tag should be preserved")
+    assert(result.html:find("<strong>bold</strong>") ~= nil, "strong tag should be preserved")
+    assert(result.html:find('<a href="https://example.com">links</a>') ~= nil, "a tag should be preserved")
+    assert(result.html:find('<img src="test.jpg" alt="image">') ~= nil, "img tag should be preserved")
+
+    -- Ensure not double-encoded
+    assert(result.html:find("&lt;em&gt;") == nil, "HTML should not be escaped")
+end
+
+-- Test HTML blocks (type 1: pre, script, style, textarea)
+function tests.test_html_blocks_type1()
+    local content = [[
+Before
+
+<pre>
+This is <b>preformatted</b> text
+with HTML tags that should remain unescaped.
+</pre>
+
+After
+]]
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Pre block should be preserved with internal HTML unescaped
+    assert(result.html:find("<pre>") ~= nil, "pre tag should be preserved")
+    assert(result.html:find("<b>preformatted</b>") ~= nil, "HTML inside pre should be unescaped")
+    assert(result.html:find("</pre>") ~= nil, "closing pre tag should be preserved")
+end
+
+-- Test HTML comments
+function tests.test_html_comments()
+    local content = [[
+This is visible text.
+
+<!-- This is a comment that should be preserved -->
+
+More visible text.
+]]
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Comment should be preserved
+    assert(result.html:find("This is a comment that should be preserved", 1, true) ~= nil, "HTML comment should be preserved")
+end
+
+-- Test processing instructions
+function tests.test_processing_instructions()
+    local content = [[
+Content before.
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+Content after.
+]]
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Processing instruction should be preserved
+    assert(result.html:find('version="1.0" encoding="UTF-8"', 1, true) ~= nil, "XML processing instruction should be preserved")
+end
+
+-- Test CDATA sections
+function tests.test_cdata_sections()
+    local content = [=[
+Before CDATA.
+
+<![CDATA[
+This is <b>CDATA</b> content with <em>HTML</em> tags
+that should remain unescaped.
+]]>
+
+After CDATA.
+]=]
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- CDATA section should be preserved
+    assert(string.find(result.html, "<![CDATA[", 1, true) ~= nil, "CDATA start should be preserved")
+    assert(result.html:find("<b>CDATA</b>") ~= nil, "HTML inside CDATA should be unescaped")
+    assert(string.find(result.html, "]]>", 1, true) ~= nil, "CDATA end should be preserved")
+end
+
+-- Test declarations
+function tests.test_declarations()
+    local content = [[
+Before declaration.
+
+<!DOCTYPE html>
+
+After declaration.
+]]
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Declaration should be preserved
+    assert(result.html:find("<!DOCTYPE html>") ~= nil, "DOCTYPE declaration should be preserved")
+end
+
+-- Test block-level HTML tags (type 6)
+function tests.test_block_level_html()
+    local content = [[
+Before div.
+
+<div class="container">
+  <p>This is a paragraph inside HTML.</p>
+  <ul>
+    <li>Item 1</li>
+    <li>Item 2</li>
+  </ul>
+</div>
+
+After div.
+]]
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Block-level HTML should be preserved
+    assert(result.html:find('<div class="container">') ~= nil, "div tag should be preserved")
+    assert(result.html:find('<p>This is a paragraph inside HTML.</p>') ~= nil, "p tag inside HTML should be preserved")
+    assert(result.html:find('<ul>') ~= nil, "ul tag inside HTML should be preserved")
+    assert(result.html:find('<li>Item 1</li>') ~= nil, "li tags inside HTML should be preserved")
+    assert(result.html:find('</div>') ~= nil, "closing div tag should be preserved")
+end
+
+-- Test mixed HTML and Markdown
+function tests.test_mixed_html_markdown()
+    local content = [=[
+# Markdown Header
+
+<div class="content">
+  <h2>HTML Header</h2>
+  <p>This is HTML paragraph with <em>emphasis</em>.</p>
+</div>
+
+## Another Markdown Header
+
+* Markdown list item with <code>inline code</code>.
+* Another item with <strong>bold HTML</strong>.
+
+<script>
+  console.log("This is JavaScript");
+</script>
+]=]
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Markdown should be processed
+    assert(result.html:find("<h1>Markdown Header</h1>") ~= nil, "Markdown h1 should be processed")
+    assert(result.html:find("<h2>Another Markdown Header</h2>") ~= nil, "Markdown h2 should be processed")
+    assert(result.html:find("<em>emphasis</em>") ~= nil, "Markdown emphasis should be processed")
+    assert(result.html:find("<ul>") ~= nil, "Markdown list should be processed")
+    assert(result.html:find("<li>") ~= nil, "Markdown list items should be processed")
+
+    -- HTML should be preserved
+    assert(result.html:find('<div class="content">') ~= nil, "HTML div should be preserved")
+    assert(result.html:find('<h2>HTML Header</h2>') ~= nil, "HTML h2 should be preserved")
+    assert(result.html:find('<script>') ~= nil, "HTML script tag should be preserved")
+    assert(string.find(result.html, 'console.log("This is JavaScript");', 1, true) ~= nil, "JavaScript content should be preserved")
+    assert(result.html:find('</script>') ~= nil, "Closing script tag should be preserved")
+end
+
 -- ERROR TESTS --
 
 -- Test invalid input type

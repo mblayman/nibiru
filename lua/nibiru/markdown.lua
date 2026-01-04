@@ -149,6 +149,140 @@ function parse_markdown(text)
             local blockquote_content = table.concat(blockquote_lines, "\n")
             table.insert(html_parts, string.format("<blockquote>%s</blockquote>", parse_markdown(blockquote_content)))
 
+        -- HTML blocks (type 1: pre, script, style, textarea)
+        elseif line:match("^%s*<pre%s*>") or line:match("^%s*<script%s*>") or
+               line:match("^%s*<style%s*>") or line:match("^%s*<textarea%s*>") then
+            local html_lines = {line}
+            local tag_name = line:match("<(%w+)")
+            local closing_tag = "</" .. tag_name .. ">"
+            i = i + 1
+            while i <= #lines do
+                table.insert(html_lines, lines[i])
+                if lines[i]:match(closing_tag) then
+                    break
+                end
+                i = i + 1
+            end
+            table.insert(html_parts, table.concat(html_lines, "\n"))
+            i = i + 1
+
+        -- HTML blocks (type 2: comments)
+        elseif line:match("^%s*<!%-%-") then
+            local html_lines = {line}
+            i = i + 1
+            -- Continue until we find the closing -->
+            while i <= #lines and not lines[i-1]:match("%-%->%s*$") do
+                table.insert(html_lines, lines[i])
+                i = i + 1
+            end
+            table.insert(html_parts, table.concat(html_lines, "\n"))
+
+        -- HTML blocks (type 3: processing instructions)
+        elseif line:match("^%s*<%?") then
+            local html_lines = {line}
+            i = i + 1
+            while i <= #lines do
+                table.insert(html_lines, lines[i])
+                if lines[i]:match("%?>%s*$") then
+                    break
+                end
+                i = i + 1
+            end
+            table.insert(html_parts, table.concat(html_lines, "\n"))
+            i = i + 1
+
+        -- HTML blocks (type 4: declarations)
+        elseif line:match("^%s*<!%w") then
+            local html_lines = {line}
+            i = i + 1
+            while i <= #lines do
+                table.insert(html_lines, lines[i])
+                if lines[i]:match(">%s*$") then
+                    break
+                end
+                i = i + 1
+            end
+            table.insert(html_parts, table.concat(html_lines, "\n"))
+            i = i + 1
+
+        -- HTML blocks (type 5: CDATA)
+        elseif line:match("^%s*<!%[CDATA%[") then
+            local html_lines = {line}
+            i = i + 1
+            while i <= #lines do
+                table.insert(html_lines, lines[i])
+                if lines[i]:match("%]%]%>%s*$") then
+                    break
+                end
+                i = i + 1
+            end
+            table.insert(html_parts, table.concat(html_lines, "\n"))
+            i = i + 1
+
+        -- HTML blocks (type 6: block-level tags)
+        elseif line:match("^%s*<") and
+              (line:match("<address%s*>") or line:match("<article%s*>") or line:match("<aside%s*>") or
+               line:match("<base%s*>") or line:match("<basefont%s*>") or line:match("<blockquote%s*>") or
+               line:match("<body%s*>") or line:match("<caption%s*>") or line:match("<center%s*>") or
+               line:match("<col%s*>") or line:match("<colgroup%s*>") or line:match("<dd%s*>") or
+               line:match("<details%s*>") or line:match("<dialog%s*>") or line:match("<dir%s*>") or
+               line:match("<div%s*>") or line:match("<dl%s*>") or line:match("<dt%s*>") or
+               line:match("<fieldset%s*>") or line:match("<figcaption%s*>") or line:match("<figure%s*>") or
+               line:match("<footer%s*>") or line:match("<form%s*>") or line:match("<frame%s*>") or
+               line:match("<frameset%s*>") or line:match("<h1%s*>") or line:match("<h2%s*>") or
+               line:match("<h3%s*>") or line:match("<h4%s*>") or line:match("<h5%s*>") or
+               line:match("<h6%s*>") or line:match("<head%s*>") or line:match("<header%s*>") or
+               line:match("<hr%s*>") or line:match("<html%s*>") or line:match("<iframe%s*>") or
+               line:match("<legend%s*>") or line:match("<li%s*>") or line:match("<link%s*>") or
+               line:match("<main%s*>") or line:match("<menu%s*>") or line:match("<menuitem%s*>") or
+               line:match("<nav%s*>") or line:match("<noframes%s*>") or line:match("<ol%s*>") or
+               line:match("<optgroup%s*>") or line:match("<option%s*>") or line:match("<p%s*>") or
+               line:match("<param%s*>") or line:match("<search%s*>") or line:match("<section%s*>") or
+               line:match("<summary%s*>") or line:match("<table%s*>") or line:match("<tbody%s*>") or
+               line:match("<td%s*>") or line:match("<tfoot%s*>") or line:match("<th%s*>") or
+               line:match("<thead%s*>") or line:match("<title%s*>") or line:match("<tr%s*>") or
+               line:match("<track%s*>") or line:match("<ul%s*>") or line:match("</") and
+               (line:match("</address>") or line:match("</article>") or line:match("</aside>") or
+                line:match("</base>") or line:match("</basefont>") or line:match("</blockquote>") or
+                line:match("</body>") or line:match("</caption>") or line:match("</center>") or
+                line:match("</col>") or line:match("</colgroup>") or line:match("</dd>") or
+                line:match("</details>") or line:match("</dialog>") or line:match("</dir>") or
+                line:match("</div>") or line:match("</dl>") or line:match("</dt>") or
+                line:match("</fieldset>") or line:match("</figcaption>") or line:match("</figure>") or
+                line:match("</footer>") or line:match("</form>") or line:match("</frame>") or
+                line:match("</frameset>") or line:match("</h1>") or line:match("</h2>") or
+                line:match("</h3>") or line:match("</h4>") or line:match("</h5>") or
+                line:match("</h6>") or line:match("</head>") or line:match("</header>") or
+                line:match("</hr>") or line:match("</html>") or line:match("</iframe>") or
+                line:match("</legend>") or line:match("</li>") or line:match("</link>") or
+                line:match("</main>") or line:match("</menu>") or line:match("</menuitem>") or
+                line:match("</nav>") or line:match("</noframes>") or line:match("</ol>") or
+                line:match("</optgroup>") or line:match("</option>") or line:match("</p>") or
+                line:match("</param>") or line:match("</search>") or line:match("</section>") or
+                line:match("</summary>") or line:match("</table>") or line:match("</tbody>") or
+                line:match("</td>") or line:match("</tfoot>") or line:match("</th>") or
+                line:match("</thead>") or line:match("</title>") or line:match("</tr>") or
+                line:match("</track>") or line:match("</ul>"))) then
+            local html_lines = {line}
+            i = i + 1
+            while i <= #lines and lines[i]:match("%S") do
+                table.insert(html_lines, lines[i])
+                i = i + 1
+            end
+            table.insert(html_parts, table.concat(html_lines, "\n"))
+            i = i + 1 -- Skip the blank line
+
+        -- HTML blocks (type 7: complete open or closing tags)
+        elseif line:match("^%s*<[^/][^>]*>") or line:match("^%s*</[^>]+>") then
+            local html_lines = {line}
+            i = i + 1
+            while i <= #lines and lines[i]:match("%S") do
+                table.insert(html_lines, lines[i])
+                i = i + 1
+            end
+            table.insert(html_parts, table.concat(html_lines, "\n"))
+            i = i + 1 -- Skip the blank line
+
         -- Code block
         elseif line:match("^```") then
             local lang = line:match("^```(%w*)")
@@ -237,8 +371,8 @@ function parse_markdown(text)
                 local para_lines = {line}
                 i = i + 1
                 while i <= #lines and lines[i]:match("%S") and not lines[i]:match("^#{1,6}%s+") and not lines[i]:match("^[-*_]{3,}$") and not lines[i]:match("^>%s*") and not lines[i]:match("^```") and not lines[i]:match("^[-*+]%s+") and not lines[i]:match("^%d+%.%s+") and not lines[i]:match("^|") do
-                    table.insert(para_lines, lines[i])
-                    i = i + 1
+                        table.insert(para_lines, lines[i])
+                        i = i + 1
                 end
                 local para_content = table.concat(para_lines, "\n")
                 table.insert(html_parts, string.format("<p>%s</p>", parse_inline(para_content)))
@@ -257,8 +391,8 @@ end
 function parse_inline(text)
     if not text then return "" end
 
-    -- Escape HTML first
-    local result = escape_html(text)
+    -- Escape HTML first, but preserve raw HTML elements
+    local result = escape_html_with_raw_preserved(text)
 
     -- Code spans (escape backticks in content)
     result = result:gsub("`([^`\n]+)`", "<code>%1</code>")
@@ -276,6 +410,69 @@ function parse_inline(text)
     -- Links and images
     result = result:gsub("!%[([^%]]+)%]%(([^%)]+)%)", '<img alt="%1" src="%2">')
     result = result:gsub("%[([^%]]+)%]%(([^%)]+)%)", '<a href="%2">%1</a>')
+
+    return result
+end
+
+--- Escape HTML entities in text, but preserve raw HTML elements
+--- @param text string The text to escape
+--- @return string The text with HTML entities escaped except for raw HTML elements
+function escape_html_with_raw_preserved(text)
+    if not text then return "" end
+
+    -- First, temporarily replace raw HTML elements with placeholders
+    local result = text
+    local replacements = {}
+    local counter = 0
+
+    -- Helper function to add replacement
+    local function add_replacement(original)
+        counter = counter + 1
+        local placeholder = string.format("RAWHTML_%d", counter)
+        replacements[placeholder] = original
+        return placeholder
+    end
+
+    -- Process HTML comments: <!-- comment -->
+    result = result:gsub("<!%-%-.-%-%->", add_replacement)
+
+    -- Process processing instructions: <? ... ?>
+    result = result:gsub("<%?.-%?>", add_replacement)
+
+    -- Process declarations: <!DOCTYPE ... > etc.
+    result = result:gsub("<!%w.->", add_replacement)
+
+    -- Process CDATA sections: <![CDATA[ ... ]]>
+    result = result:gsub("<!%[CDATA%[.-%]%]>?", add_replacement)
+
+    -- Process self-closing tags: <tag ... />
+    result = result:gsub("<[%w_:][%w_.:%-]*[^>]*/>", add_replacement)
+
+    -- Process closing tags: </tag>
+    result = result:gsub("</[%w_:][%w_.:%-]*>", add_replacement)
+
+    -- Process opening tags: <tag ... >
+    result = result:gsub("<([%w_:][%w_.:%-]*)([^>]*)>", function(tag, rest)
+        local match = "<" .. tag .. rest .. ">"
+        -- Skip if it's already handled as self-closing, closing, or other special tags
+        if not rest:match("/$") and not match:match("^</") and
+           not match:match("^<!") and not match:match("^<%?") then
+            return add_replacement(match)
+        end
+        return match
+    end)
+
+    -- Now escape the remaining HTML
+    result = result:gsub("&", "&amp;")
+                  :gsub("<", "&lt;")
+                  :gsub(">", "&gt;")
+                  :gsub('"', "&quot;")
+                  :gsub("'", "&#39;")
+
+    -- Restore the raw HTML elements
+    for placeholder, original in pairs(replacements) do
+        result = result:gsub(placeholder, original)
+    end
 
     return result
 end
