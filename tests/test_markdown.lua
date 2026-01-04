@@ -511,5 +511,29 @@ title: Test
     assert(string.find(err, "YAML frontmatter must appear at the beginning of the document", 1, true) ~= nil)
 end
 
+-- Test HTML anchor tag followed by header (demonstrates reported parsing bug)
+function tests.test_html_anchor_with_header()
+    local content = [[<a id='marking'></a>
+## Marking strings]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- The anchor tag should be preserved as raw HTML (unescaped)
+    assert(result.html:find("<a id='marking'></a>", 1, true) ~= nil,
+           "Anchor tag should be preserved as raw HTML")
+
+    -- The header should be parsed as H2
+    assert(result.html:find("<h2>Marking strings</h2>", 1, true) ~= nil,
+           "Header should be parsed to H2 tag")
+
+    -- Ensure no escaped HTML entities in the anchor tag
+    assert(result.html:find("&lt;a") == nil,
+           "Anchor tag should not be HTML-escaped")
+    assert(result.html:find("&gt;") == nil,
+           "Anchor tag should not contain escaped angle brackets")
+end
+
 return tests
 

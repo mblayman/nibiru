@@ -274,14 +274,8 @@ function parse_markdown(text)
 
         -- HTML blocks (type 7: complete open or closing tags)
         elseif line:match("^%s*<[^/][^>]*>") or line:match("^%s*</[^>]+>") then
-            local html_lines = {line}
+            table.insert(html_parts, line)
             i = i + 1
-            while i <= #lines and lines[i]:match("%S") do
-                table.insert(html_lines, lines[i])
-                i = i + 1
-            end
-            table.insert(html_parts, table.concat(html_lines, "\n"))
-            i = i + 1 -- Skip the blank line
 
         -- Code block
         elseif line:match("^```") then
