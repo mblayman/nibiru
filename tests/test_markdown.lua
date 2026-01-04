@@ -403,19 +403,20 @@ end
 -- Test that HTML tags in paragraphs are escaped
 function tests.test_html_tags_in_paragraph_escaped()
     local content = [[D3 uses SVG (Scalable Vector Graphics) to draw its shapes. It's possible to
-create a new <svg> tag on the fly, but I added the following to the HTML
+create a new `<svg>` tag on the fly, but I added the following to the HTML
 source code.]]
 
     local result, err = markdown.parse(content)
     assert.is_nil(err)
     assert.is_string(result.html)
 
-    -- HTML tags in regular paragraph text should be escaped
-    assert(string.find(result.html, '&lt;svg&gt;', 1, true) ~= nil, "svg tag should be escaped in paragraph")
+    -- HTML tags in code spans should be escaped
+    assert(string.find(result.html, '&lt;svg&gt;', 1, true) ~= nil, "svg tag should be escaped in code span")
     assert(result.html:find('<svg>') == nil, "svg tag should not be preserved unescaped")
 
     -- Regular markdown should still work
     assert(result.html:find('<p>') ~= nil, "Should be wrapped in paragraph tags")
+    assert(result.html:find('<code>') ~= nil, "Should have code span for backticked content")
 end
 
 -- Test mixed HTML and Markdown
