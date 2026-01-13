@@ -47,3 +47,6 @@ luac.out
 
 # C
 test/test_runner
+
+# Test log files
+test/integration/*.log
