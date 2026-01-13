@@ -161,17 +161,18 @@ int create_delegation_socket() {
 
 // Serialize request for delegation
 int serialize_request(char *buf, size_t buf_size, const char *method,
-                      const char *path, int client_fd) {
+                      size_t method_len, const char *path, size_t path_len,
+                      int client_fd) {
     // Format: method\0path\0client_fd
-    size_t method_len = strlen(method) + 1;
-    size_t path_len = strlen(path) + 1;
-    size_t total = method_len + path_len + sizeof(int);
+    size_t total = method_len + 1 + path_len + 1 + sizeof(int);
     if (total > buf_size)
         return -1;
 
     memcpy(buf, method, method_len);
-    memcpy(buf + method_len, path, path_len);
-    memcpy(buf + method_len + path_len, &client_fd, sizeof(int));
+    buf[method_len] = '\0';
+    memcpy(buf + method_len + 1, path, path_len);
+    buf[method_len + 1 + path_len] = '\0';
+    memcpy(buf + method_len + 1 + path_len + 1, &client_fd, sizeof(int));
     return total;
 }
 
@@ -200,32 +201,19 @@ int deserialize_request(const char *buf, size_t buf_size, char *method,
 
 // Delegate static request
 int delegate_static_request(int delegation_socket, const char *method,
-                            const char *path, int client_fd) {
+                            size_t method_len, const char *path,
+                            size_t path_len, int client_fd) {
     char buf[1024];
-    int len = serialize_request(buf, sizeof(buf), method, path, client_fd);
-    if (len == -1)
+    int len = serialize_request(buf, sizeof(buf), method, method_len, path,
+                                path_len, client_fd);
+    if (len == -1) {
         return -1;
+    }
 
-    // Send data and fd
-    struct msghdr msg = {0};
-    struct cmsghdr *cmsg;
-    char cbuf[CMSG_SPACE(sizeof(client_fd))];
-
-    struct iovec io = {.iov_base = buf, .iov_len = len};
-    msg.msg_iov = &io;
-    msg.msg_iovlen = 1;
-
-    msg.msg_control = cbuf;
-    msg.msg_controllen = sizeof(cbuf);
-
-    cmsg = CMSG_FIRSTHDR(&msg);
-    cmsg->cmsg_level = SOL_SOCKET;
-    cmsg->cmsg_type = SCM_RIGHTS;
-    cmsg->cmsg_len = CMSG_LEN(sizeof(client_fd));
-    memcpy(CMSG_DATA(cmsg), &client_fd, sizeof(client_fd));
-
-    if (sendmsg(delegation_socket, &msg, 0) == -1) {
-        perror("sendmsg");
+    // Send data
+    ssize_t sent = send(delegation_socket, buf, len, 0);
+    if (sent == -1) {
+        perror("send in delegate");
         return -1;
     }
     return 0;
@@ -233,98 +221,41 @@ int delegate_static_request(int delegation_socket, const char *method,
 
 // Receive delegated request
 int receive_delegated_request(int delegation_socket, char *method,
-                              size_t method_size, char *path, size_t path_size,
-                              int *client_fd) {
+                              size_t method_size, char *path,
+                              size_t path_size) {
     char buf[1024];
-    struct msghdr msg = {0};
-    struct cmsghdr *cmsg;
-    char cbuf[CMSG_SPACE(sizeof(int))];
-
-    struct iovec io = {.iov_base = buf, .iov_len = sizeof(buf)};
-    msg.msg_iov = &io;
-    msg.msg_iovlen = 1;
-    msg.msg_control = cbuf;
-    msg.msg_controllen = sizeof(cbuf);
-
-    ssize_t received = recvmsg(delegation_socket, &msg, 0);
+    ssize_t received = recv(delegation_socket, buf, sizeof(buf), 0);
     if (received == -1) {
-        perror("recvmsg");
+        perror("recv in receive");
         return -1;
     }
-
-    cmsg = CMSG_FIRSTHDR(&msg);
-    if (cmsg && cmsg->cmsg_level == SOL_SOCKET &&
-        cmsg->cmsg_type == SCM_RIGHTS) {
-        memcpy(client_fd, CMSG_DATA(cmsg), sizeof(int));
-    } else {
-        return -1;
-    }
-
-    return deserialize_request(buf, received, method, method_size, path,
-                               path_size, client_fd);
+    int dummy_fd;
+    int result = deserialize_request(buf, received, method, method_size, path,
+                                     path_size, &dummy_fd);
+    return result;
 }
 
 // Event loop for static worker
 void run_static_event_loop(int delegation_socket, const char *static_dir,
                            const char *static_url) {
-#ifndef USE_EPOLL
-    fprintf(stderr, "Static file serving is not supported on this platform "
-                    "(requires Linux with epoll)\n");
-    return;
-#endif
-
-#ifdef USE_EPOLL
-    int epoll_fd = epoll_create1(0);
-    if (epoll_fd == -1) {
-        perror("epoll_create1");
-        return;
-    }
-
-    struct epoll_event ev;
-    ev.events = EPOLLIN;
-    ev.data.fd = delegation_socket;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, delegation_socket, &ev) == -1) {
-        perror("epoll_ctl");
-        close(epoll_fd);
-        return;
-    }
-
-    struct epoll_event events[10];
     while (1) {
-        int nfds = epoll_wait(epoll_fd, events, 10, -1);
-        if (nfds == -1) {
+        int delegation_client_fd = accept(delegation_socket, NULL, NULL);
+        if (delegation_client_fd == -1) {
             if (errno == EINTR)
                 continue;
-            perror("epoll_wait");
+            perror("accept in static worker");
             break;
         }
-
-        for (int i = 0; i < nfds; ++i) {
-            if (events[i].data.fd == delegation_socket) {
-                int delegation_client_fd;
-                struct sockaddr_un addr;
-                socklen_t addr_len = sizeof(addr);
-                delegation_client_fd = accept(
-                    delegation_socket, (struct sockaddr *)&addr, &addr_len);
-                if (delegation_client_fd == -1)
-                    continue;
-
-                char method[16];
-                char path[PATH_MAX];
-                int original_client_fd;
-                if (receive_delegated_request(
-                        delegation_client_fd, method, sizeof(method), path,
-                        sizeof(path), &original_client_fd) == 0) {
-                    serve_static_file(original_client_fd, path, static_dir,
-                                      static_url);
-                    close(original_client_fd);
-                }
-                close(delegation_client_fd);
-            }
+        char method[16];
+        char path[PATH_MAX];
+        if (receive_delegated_request(delegation_client_fd, method,
+                                      sizeof(method), path,
+                                      sizeof(path)) == 0) {
+            serve_static_file(delegation_client_fd, path, static_dir,
+                              static_url);
         }
+        close(delegation_client_fd);
     }
-    close(epoll_fd);
-#endif
 }
 
 // Placeholder for kqueue implementation

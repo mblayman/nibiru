@@ -1,12 +1,15 @@
 #ifndef STATIC_H
 #define STATIC_H
 
+#include <stddef.h>
+
 // Static file request detection
 int is_static_request(const char *path, const char *static_url);
 
 // Delegation of static requests
 int delegate_static_request(int delegation_socket, const char *method,
-                            const char *path, int client_fd);
+                            size_t method_len, const char *path,
+                            size_t path_len, int client_fd);
 
 // Socket creation for delegation
 int create_delegation_socket();

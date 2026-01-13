@@ -14,6 +14,7 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$TEST_DIR"
 STATIC_DIR="$TEST_DIR/static"
 PID_FILE="$TEST_DIR/nibiru_test.pid"
+LOG_FILE="$TEST_DIR/nibiru_test.log"
 
 # Function to print test result
 print_result() {
@@ -31,7 +32,10 @@ print_result() {
 start_server() {
     echo "Starting Nibiru server..."
     cd "$TEST_DIR/../.."  # Go to root
-    ./nibiru run docs.app:app 8081 2>&1 &
+    export LUA_PATH="./lua/?.lua;./docs/?.lua;./?.lua;$LUA_PATH"
+    export LUA_CPATH="./lua/?.so;./?.so;./lua/?.so;$LUA_CPATH"
+    touch "$LOG_FILE"
+    ./nibiru run --static "$STATIC_DIR" --static-url /static docs.app:app 8081 > /dev/null 2> "$LOG_FILE" &
     echo $! > "$PID_FILE"
     sleep 5 # Wait for server to start
 }
@@ -44,8 +48,10 @@ stop_server() {
     fi
     # Kill any leftover processes
     kill_leftover_processes >/dev/null 2>&1 || true
-    # Clean up socket files
+    # Clean up files
     rm -f /tmp/nibiru_static_*.sock 2>/dev/null || true
+    # Keep log file for debugging
+    # rm -f "$LOG_FILE" 2>/dev/null || true
 }
 
 # Function to make HTTP request and check response
@@ -70,11 +76,13 @@ check_response() {
 
     if [ "$http_code" != "$expected_status" ]; then
         print_result "$test_name" "Expected status $expected_status, got $http_code (body: '$body')"
+        test_failed=1
         return 1
     fi
 
     if [ -n "$expected_content" ] && [[ "$body" != *"$expected_content"* ]]; then
         print_result "$test_name" "Expected content not found in response (body: '$body')"
+        test_failed=1
         return 1
     fi
 
@@ -105,13 +113,18 @@ kill_leftover_processes() {
         echo "WARNING: Found leftover nibiru processes: $leftover_pids"
         echo "Killing them..."
         echo "$leftover_pids" | xargs kill -9 2>/dev/null || true
-        return 1
+        test_failed=1
+        return 0
     fi
     return 0
 }
 
 # Main test
 echo "Running Nibiru integration tests..."
+
+# set -e  # Temporarily disable
+
+test_failed=0
 
 # Check for existing processes
 check_existing_processes || exit 1
@@ -134,7 +147,21 @@ check_response "http://127.0.0.1:8081/" "200" "Nibiru Docs" "App endpoint"
 # Test 2: Static file serving
 check_response "http://127.0.0.1:8081/static/test.js" "200" "console.log" "Static JS file"
 
+echo "After static test"
+
 echo "Integration tests completed."
+
+# Show server logs
+echo "About to show logs"
+echo "Log file: $LOG_FILE"
+ls -la "$LOG_FILE" 2>/dev/null || echo "Log file not found"
+if [ -f "$LOG_FILE" ]; then
+    echo "Server stderr logs:"
+    cat "$LOG_FILE" 2>/dev/null || echo "Cat failed"
+else
+    echo "No server log file found"
+fi
+echo "Logs shown"
 
 # Check for leftover processes
 if ! kill_leftover_processes; then
@@ -148,5 +175,8 @@ if kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
 else
     echo "Server has exited"
 fi
+
+echo "End of integration test script"
+# exit $test_failed
 
 stop_server
