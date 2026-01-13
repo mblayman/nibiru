@@ -7,6 +7,11 @@
 const char *get_mime_type(const char *path);
 int sanitize_path(const char *path, char *out, size_t out_size,
                   const char *static_dir, const char *static_url);
+int serialize_request(char *buf, size_t buf_size, const char *method,
+                      const char *path, int client_fd);
+int deserialize_request(const char *buf, size_t buf_size, char *method,
+                        size_t method_size, char *path, size_t path_size,
+                        int *client_fd);
 
 // Test functions declared in test_parse.c
 void test_is_supported_method_valid(void);
@@ -78,6 +83,27 @@ void test_sanitize_path_invalid_url(void) {
     TEST_ASSERT_EQUAL(-1, result);
 }
 
+void test_serialize_deserialize_request(void) {
+    char buf[1024];
+    const char *method = "GET";
+    const char *path = "/static/test.txt";
+    int client_fd = 42;
+
+    int len = serialize_request(buf, sizeof(buf), method, path, client_fd);
+    TEST_ASSERT_GREATER_THAN(0, len);
+
+    char out_method[16];
+    char out_path[PATH_MAX];
+    int out_client_fd;
+    int result =
+        deserialize_request(buf, len, out_method, sizeof(out_method), out_path,
+                            sizeof(out_path), &out_client_fd);
+    TEST_ASSERT_EQUAL(0, result);
+    TEST_ASSERT_EQUAL_STRING(method, out_method);
+    TEST_ASSERT_EQUAL_STRING(path, out_path);
+    TEST_ASSERT_EQUAL(client_fd, out_client_fd);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -103,6 +129,7 @@ int main(void) {
     RUN_TEST(test_sanitize_path_valid);
     RUN_TEST(test_sanitize_path_traversal);
     RUN_TEST(test_sanitize_path_invalid_url);
+    RUN_TEST(test_serialize_deserialize_request);
 
     return UNITY_END();
 }
