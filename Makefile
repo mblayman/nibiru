@@ -37,6 +37,9 @@ test-c:
 format:
 	clang-format -i src/**.c
 
+integration-test:
+	cd test/integration && ./run.sh
+
 req:
 	@printf 'GET / HTTP/1.1\r\n\r\n' | nc 127.0.0.1 8080
 
