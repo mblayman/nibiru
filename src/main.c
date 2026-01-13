@@ -271,8 +271,6 @@ int run_worker(int worker_id, int listen_socket_fd, pid_t main_pid,
 
             // Check for static file requests
             if (is_static_request(target, static_url)) {
-                fprintf(stderr, "Static request detected: %s\n", target);
-                fflush(stderr);
                 // Connect to delegation socket
                 int delegation_sock = socket(AF_UNIX, SOCK_STREAM, 0);
                 if (delegation_sock != -1) {
@@ -281,30 +279,19 @@ int run_worker(int worker_id, int listen_socket_fd, pid_t main_pid,
                     addr.sun_family = AF_UNIX;
                     snprintf(addr.sun_path, sizeof(addr.sun_path),
                              "/tmp/nibiru_static_%d.sock", main_pid);
-                    fprintf(stderr, "Connecting to delegation socket: %s\n",
-                            addr.sun_path);
-                    fflush(stderr);
                     if (connect(delegation_sock, (struct sockaddr *)&addr,
                                 sizeof(addr)) == 0) {
-                        fprintf(stderr, "Connected to delegation socket\n");
-                        fflush(stderr);
                         delegate_static_request(delegation_sock, method,
                                                 method_len, target, target_len,
                                                 client_fd);
                         // Read response from delegation_sock and send to
                         // client_fd
-                        fprintf(stderr, "Reading response from delegation\n");
-                        fflush(stderr);
                         char response_buf[8192];
                         ssize_t n;
                         while ((n = read(delegation_sock, response_buf,
                                          sizeof(response_buf))) > 0) {
-                            fprintf(stderr, "Sending %zd bytes to client\n", n);
-                            fflush(stderr);
                             send(client_fd, response_buf, n, 0);
                         }
-                        fprintf(stderr, "Finished reading response\n");
-                        fflush(stderr);
                         close(delegation_sock);
                         close(client_fd);
                         continue;
@@ -696,7 +683,6 @@ int main(int argc, char *argv[]) {
         close(listen_socket_fd);
         return 1;
     }
-    printf("Created delegation socket: /tmp/nibiru_static_%d.sock\n", getpid());
 
     // Fork static worker
     pid_t static_pid = fork();
