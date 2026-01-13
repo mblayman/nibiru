@@ -7,7 +7,7 @@ CFLAGS=-I../src -I. -Wall -Wextra -std=c99 -D_GNU_SOURCE
 
 all: test_runner
 
-test_runner: test_parse.o test_main.o unity.o ../src/parse.o
+test_runner: test_parse.o test_main.o unity.o ../src/parse.o ../src/static.o
 	$(CC) $(CFLAGS) $^ -o $@
 
 run: all

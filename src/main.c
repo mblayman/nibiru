@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -18,6 +19,7 @@
 #include <string.h>
 
 #include "parse.h"
+#include "static.h"
 
 // Feature detection for accept4 (Linux-specific with _GNU_SOURCE)
 #if defined(__linux__) && defined(_GNU_SOURCE)
@@ -25,12 +27,9 @@
 int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags);
 #endif
 
-// Function declarations
-int is_supported_method(const char *method, int method_len);
-int is_supported_version(const char *version, int version_len);
-int parse_request_line(const char *buffer, int buffer_len, const char **method,
-                       const char **target, const char **version,
-                       int *method_len, int *target_len, int *version_len);
+// Static file configuration
+char *static_dir = "static";
+char *static_url = "/static";
 
 struct WorkerState {
     // The local Lua interpreter
@@ -46,20 +45,24 @@ struct WorkerState {
 // Global flag for graceful shutdown
 volatile sig_atomic_t shutdown_requested = 0;
 
-// Signal handler for graceful shutdown
-void signal_handler(int signum) { shutdown_requested = 1; }
-
 // Worker shutdown flag
 volatile sig_atomic_t worker_shutdown_requested = 0;
 
+// Signal handler for graceful shutdown
+void signal_handler(int signum) {
+    (void)signum;
+    shutdown_requested = 1;
+}
+
 // Signal handler for worker shutdown
-void worker_signal_handler(int signum) { worker_shutdown_requested = 1; }
+void worker_signal_handler(int signum) {
+    (void)signum;
+    worker_shutdown_requested = 1;
+}
 
 // Forward declarations
 int send_completion_to_parent(int unix_socket);
 int receive_completion_from_worker(int unix_socket);
-int send_fd_to_worker(int unix_socket, int fd_to_send);
-int receive_fd_from_parent(int unix_socket);
 
 struct WorkerPool {
     int num_workers;
@@ -266,6 +269,31 @@ int run_worker(int worker_id, int listen_socket_fd, const char *app_module,
                 continue;
             }
 
+            // Check for static file requests
+            if (is_static_request(target, static_url)) {
+                // Connect to delegation socket
+                int delegation_sock = socket(AF_UNIX, SOCK_STREAM, 0);
+                if (delegation_sock != -1) {
+                    struct sockaddr_un addr;
+                    memset(&addr, 0, sizeof(addr));
+                    addr.sun_family = AF_UNIX;
+                    snprintf(addr.sun_path, sizeof(addr.sun_path),
+                             "/tmp/nibiru_static_%d.sock", getppid());
+                    if (connect(delegation_sock, (struct sockaddr *)&addr,
+                                sizeof(addr)) == 0) {
+                        delegate_static_request(delegation_sock, method, target,
+                                                client_fd);
+                        close(delegation_sock);
+                        close(client_fd);
+                        continue;
+                    }
+                    close(delegation_sock);
+                }
+                // Fallback: close connection
+                close(client_fd);
+                continue;
+            }
+
             // Find the start of remaining data (after \r\n)
             const char *remaining_data =
                 memmem(receive_buffer, bytes_received, "\r\n", 2);
@@ -368,84 +396,6 @@ int receive_completion_from_worker(int unix_socket) {
     return 0; // Unknown message
 }
 
-// Send a file descriptor to a worker via UNIX socket
-int send_fd_to_worker(int unix_socket, int fd_to_send) {
-    struct msghdr msg = {0};
-    struct cmsghdr *cmsg;
-    char buf[CMSG_SPACE(sizeof(fd_to_send))];
-    memset(buf, 0, sizeof(buf));
-
-    // Dummy data to send
-    struct iovec io = {.iov_base = "FD", .iov_len = 2};
-    msg.msg_iov = &io;
-    msg.msg_iovlen = 1;
-
-    msg.msg_control = buf;
-    msg.msg_controllen = sizeof(buf);
-
-    cmsg = CMSG_FIRSTHDR(&msg);
-    cmsg->cmsg_level = SOL_SOCKET;
-    cmsg->cmsg_type = SCM_RIGHTS;
-    cmsg->cmsg_len = CMSG_LEN(sizeof(fd_to_send));
-
-    memcpy(CMSG_DATA(cmsg), &fd_to_send, sizeof(fd_to_send));
-
-    ssize_t sent = sendmsg(unix_socket, &msg, 0);
-    if (sent == -1) {
-        perror("sendmsg failed");
-        return -1;
-    }
-
-    return 0;
-}
-
-// Receive a file descriptor from the parent
-int receive_fd_from_parent(int unix_socket) {
-    struct msghdr msg = {0};
-    struct cmsghdr *cmsg;
-    char buf[CMSG_SPACE(sizeof(int))];
-    char iobuf[2];
-
-    struct iovec io = {.iov_base = iobuf, .iov_len = sizeof(iobuf)};
-    msg.msg_iov = &io;
-    msg.msg_iovlen = 1;
-    msg.msg_control = buf;
-    msg.msg_controllen = sizeof(buf);
-
-    ssize_t received = recvmsg(unix_socket, &msg, 0);
-    if (received == -1) {
-        perror("recvmsg failed");
-        return -1;
-    }
-    if (received == 0) {
-        // Parent closed the socket - exit gracefully
-        printf("Worker: Parent closed connection, exiting\n");
-        return -2; // Special value to indicate parent exit
-    }
-
-    cmsg = CMSG_FIRSTHDR(&msg);
-    if (cmsg == NULL || cmsg->cmsg_level != SOL_SOCKET ||
-        cmsg->cmsg_type != SCM_RIGHTS) {
-        fprintf(stderr, "Invalid control message\n");
-        return -1;
-    }
-
-    cmsg = CMSG_FIRSTHDR(&msg);
-    if (cmsg == NULL) {
-        fprintf(stderr, "No control message received\n");
-        return -1;
-    }
-    if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS) {
-        fprintf(stderr, "Invalid control message: level=%d, type=%d\n",
-                cmsg->cmsg_level, cmsg->cmsg_type);
-        return -1;
-    }
-
-    int received_fd;
-    memcpy(&received_fd, CMSG_DATA(cmsg), sizeof(received_fd));
-    return received_fd;
-}
-
 /**
  * Detect if we're running from a LuaRocks tree and set up paths accordingly.
  * This checks for the presence of nibiru_core.so relative to the binary
@@ -539,7 +489,8 @@ int main(int argc, char *argv[]) {
      * Process arguments.
      */
     if (argc < 2) {
-        printf("Usage: nibiru run [--workers N] <app> [port]\n");
+        printf("Usage: nibiru run [--workers N] [--static DIR] [--static-url "
+               "URL] <app> [port]\n");
         printf("  <app> is in format of: module.path:app\n");
         printf("  --workers N: number of worker processes (default: 2)\n");
         return 1;
@@ -547,7 +498,8 @@ int main(int argc, char *argv[]) {
 
     if (strcmp(argv[1], "run") != 0) {
         printf("Unknown subcommand: %s\n", argv[1]);
-        printf("Usage: nibiru run [--workers N] <app> [port]\n");
+        printf("Usage: nibiru run [--workers N] [--static DIR] [--static-url "
+               "URL] <app> [port]\n");
         printf("  <app> is in format of: module.path:app\n");
         printf("  --workers N: number of worker processes (default: 2)\n");
         return 1;
@@ -564,7 +516,8 @@ int main(int argc, char *argv[]) {
         num_workers = strtol(workers_str, &endptr, 10);
         if (*endptr != '\0' || num_workers <= 0) {
             printf("Error: --workers must be a positive integer\n");
-            printf("Usage: nibiru run [--workers N] <app> [port]\n");
+            printf("Usage: nibiru run [--workers N] [--static DIR] "
+                   "[--static-url URL] <app> [port]\n");
             return 1;
         }
         arg_offset = 1;
@@ -574,14 +527,38 @@ int main(int argc, char *argv[]) {
         num_workers = strtol(argv[3], &endptr, 10);
         if (*endptr != '\0' || num_workers <= 0) {
             printf("Error: --workers must be a positive integer\n");
-            printf("Usage: nibiru run [--workers N] <app> [port]\n");
+            printf("Usage: nibiru run [--workers N] [--static DIR] "
+                   "[--static-url URL] <app> [port]\n");
             return 1;
         }
         arg_offset = 2;
     }
 
+    // Parse --static option
+    if (argc >= 3 + arg_offset &&
+        strncmp(argv[2 + arg_offset], "--static=", 9) == 0) {
+        static_dir = argv[2 + arg_offset] + 9;
+        arg_offset++;
+    } else if (argc >= 4 + arg_offset &&
+               strcmp(argv[2 + arg_offset], "--static") == 0) {
+        static_dir = argv[3 + arg_offset];
+        arg_offset += 2;
+    }
+
+    // Parse --static-url option
+    if (argc >= 3 + arg_offset &&
+        strncmp(argv[2 + arg_offset], "--static-url=", 13) == 0) {
+        static_url = argv[2 + arg_offset] + 13;
+        arg_offset++;
+    } else if (argc >= 4 + arg_offset &&
+               strcmp(argv[2 + arg_offset], "--static-url") == 0) {
+        static_url = argv[3 + arg_offset];
+        arg_offset += 2;
+    }
+
     if (argc < 3 + arg_offset) {
-        printf("Usage: nibiru run [--workers N] <app> [port]\n");
+        printf("Usage: nibiru run [--workers N] [--static DIR] [--static-url "
+               "URL] <app> [port]\n");
         printf("  <app> is in format of: module.path:app\n");
         printf("  --workers N: number of worker processes (default: 2)\n");
         return 1;
@@ -685,6 +662,28 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Server listening on %s...\n", port);
+
+    // Create delegation socket for static files
+    int delegation_socket = create_delegation_socket();
+    if (delegation_socket == -1) {
+        perror("Failed to create delegation socket");
+        close(listen_socket_fd);
+        return 1;
+    }
+
+    // Fork static worker
+    pid_t static_pid = fork();
+    if (static_pid == 0) {
+        // Static worker
+        close(listen_socket_fd); // Not needed
+        run_static_event_loop(delegation_socket, static_dir, static_url);
+        exit(0);
+    } else if (static_pid == -1) {
+        perror("Failed to fork static worker");
+        close(listen_socket_fd);
+        close(delegation_socket);
+        return 1;
+    }
 
     // Initialize the worker pool
     struct WorkerPool worker_pool;

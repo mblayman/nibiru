@@ -13,7 +13,7 @@ Nibiru provides a command-line interface for running web applications. The main 
 Start the Nibiru web server with a WSGI application.
 
 ```bash
-nibiru run [--workers N] <app> [port]
+nibiru run [--workers N] [--static DIR] [--static-url URL] <app> [port]
 ```
 
 **Arguments:**
@@ -28,6 +28,12 @@ nibiru run [--workers N] <app> [port]
 - `--workers N`: Number of worker processes to spawn (default: 2)
   - Can be specified as `--workers=N` or `--workers N`
   - Must be a positive integer
+- `--static DIR`: Directory to serve static files from (default: "static")
+  - Relative paths are resolved from the current working directory
+  - Static files are served under the URL prefix specified by `--static-url`
+- `--static-url URL`: URL prefix for static files (default: "/static")
+  - Requests to URLs starting with this prefix will be served from the static directory
+  - Must start with "/" and not contain ".." for security
 
 **Examples:**
 
@@ -44,13 +50,27 @@ nibiru run --workers 4 myapp:app
 # Alternative syntax for workers
 nibiru run --workers=4 myapp:app 3000
 
-# Using default callable name
-nibiru run myapp  # equivalent to myapp:app
+# Serve static files from ./assets under /files URL
+nibiru run --static assets --static-url /files myapp:app
+
+# Serve static files from absolute path
+nibiru run --static /var/www/static myapp:app
 ```
 
 **Configuration:**
 
 The application can be configured via a `config.lua` file in the working directory. See [Configuration](config.md) for details.
+
+**Static File Serving:**
+
+Nibiru can serve static files efficiently using an async worker process. When a request URL matches the configured static URL prefix, it is served directly from the file system without invoking the Lua application.
+
+- Files are served with appropriate MIME types based on file extensions
+- Requests containing ".." in the path are rejected for security
+- Only regular files are served; directories return 404
+- The static worker uses an event loop for high-performance concurrent serving
+
+This approach ensures static files don't block dynamic request processing.
 
 ## Error Handling
 
@@ -58,9 +78,11 @@ The application can be configured via a `config.lua` file in the working directo
 
 ```bash
 $ nibiru run
-Usage: nibiru run [--workers N] <app> [port]
+Usage: nibiru run [--workers N] [--static DIR] [--static-url URL] <app> [port]
   <app> is in format of: module.path:app
   --workers N: number of worker processes (default: 2)
+  --static DIR: directory for static files (default: static)
+  --static-url URL: URL prefix for static files (default: /static)
 ```
 
 ### Invalid Worker Count
@@ -68,7 +90,7 @@ Usage: nibiru run [--workers N] <app> [port]
 ```bash
 $ nibiru run --workers=0 myapp:app
 Error: --workers must be a positive integer
-Usage: nibiru run [--workers N] <app> [port]
+Usage: nibiru run [--workers N] [--static DIR] [--static-url URL] <app> [port]
 ```
 
 ### Module Not Found

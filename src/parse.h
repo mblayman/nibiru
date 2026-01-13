@@ -22,8 +22,9 @@ int is_supported_version(const char *version, int version_len);
 // Parse HTTP request line from buffer
 // Returns: 0 on success, -1 on parse error, -2 on validation error
 // method, target, version point to positions in the original buffer
-int parse_request_line(const char *buffer, int buffer_len, const char **method,
-                       const char **target, const char **version,
-                       int *method_len, int *target_len, int *version_len);
+int parse_request_line(const char *buffer, size_t buffer_len,
+                       const char **method, const char **target,
+                       const char **version, int *method_len, int *target_len,
+                       int *version_len);
 
 #endif // PARSE_H

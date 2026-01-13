@@ -3,6 +3,7 @@
 CFLAGS += -I/usr/local/Cellar/lua/5.4.6/include/lua
 CFLAGS += -L/usr/local/Cellar/lua/5.4.6/lib
 CFLAGS += -llua
+CFLAGS += -Wall -Wextra -Werror -Wno-format-truncation
 
 build: exe lib
 
@@ -18,6 +19,7 @@ exe:
 	$(CFLAGS) \
 	src/main.c \
 	src/parse.c \
+	src/static.c \
 	-o nibiru
 
 run: build

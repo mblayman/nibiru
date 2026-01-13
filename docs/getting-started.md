@@ -10,6 +10,7 @@ Nibiru is a web framework and server for Lua that implements the WSGI interface.
 - **Template rendering** - Built-in template engine with inheritance
 - **WSGI compatibility** - Standard interface for web applications
 - **High performance** - C-based server with concurrent worker processes
+- **Static file serving** - Efficient async serving of static assets
 - **Developer experience** - Clear error messages and easy debugging
 
 ## Prerequisites

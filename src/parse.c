@@ -44,9 +44,10 @@ int is_supported_version(const char *version, int version_len) {
 // -1: no CRLF, -2: validation error, -3: leading whitespace,
 // -4: empty method, -5: no target, -6: empty target,
 // -7: no version, -8: empty version, -9: invalid CRLF
-int parse_request_line(const char *buffer, int buffer_len, const char **method,
-                       const char **target, const char **version,
-                       int *method_len, int *target_len, int *version_len) {
+int parse_request_line(const char *buffer, size_t buffer_len,
+                       const char **method, const char **target,
+                       const char **version, int *method_len, int *target_len,
+                       int *version_len) {
     // Find the end of the request line (\r\n) - HTTP spec requires CRLF
     const char *line_end = NULL;
     for (size_t i = 0; i < buffer_len - 1; i++) {
