@@ -301,20 +301,35 @@ void run_static_event_loop(int delegation_socket, const char *static_dir,
 
         for (int i = 0; i < nfds; ++i) {
             if (events[i].data.fd == delegation_socket) {
+                int delegation_client_fd;
+                struct sockaddr_un addr;
+                socklen_t addr_len = sizeof(addr);
+                delegation_client_fd = accept(
+                    delegation_socket, (struct sockaddr *)&addr, &addr_len);
+                if (delegation_client_fd == -1)
+                    continue;
+
                 char method[16];
                 char path[PATH_MAX];
-                int client_fd;
-                if (receive_delegated_request(delegation_socket, method,
-                                              sizeof(method), path,
-                                              sizeof(path), &client_fd) == 0) {
-                    serve_static_file(client_fd, path, static_dir, static_url);
-                    close(client_fd);
+                int original_client_fd;
+                if (receive_delegated_request(
+                        delegation_client_fd, method, sizeof(method), path,
+                        sizeof(path), &original_client_fd) == 0) {
+                    serve_static_file(original_client_fd, path, static_dir,
+                                      static_url);
+                    close(original_client_fd);
                 }
+                close(delegation_client_fd);
             }
         }
     }
     close(epoll_fd);
 #endif
 }
+
+// Placeholder for kqueue implementation
+#ifdef USE_KQUEUE
+// Implement kqueue version similarly
+#endif
 
 // Placeholder for kqueue implementation
