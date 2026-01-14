@@ -150,12 +150,17 @@ function parse_markdown(text)
             while i <= #lines and lines[i]:match("%S") and
                   not lines[i]:match("^#{1,6}%s+") and
                   not lines[i]:match("^[-*_]{3,}$") and
-                  not lines[i]:match("^>%s*") and
                   not lines[i]:match("^```") and
                   not lines[i]:match("^[-*+]%s+") and
                   not lines[i]:match("^%d+%.%s+") and
                   not lines[i]:match("^|") do
-                table.insert(blockquote_lines, lines[i])
+                -- If this line starts with >, strip the marker and include it
+                if lines[i]:match("^>%s*") then
+                    local content = lines[i]:gsub("^>%s*", "")
+                    table.insert(blockquote_lines, content)
+                else
+                    table.insert(blockquote_lines, lines[i])
+                end
                 i = i + 1
             end
             local blockquote_content = table.concat(blockquote_lines, "\n")

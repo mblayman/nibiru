@@ -617,5 +617,39 @@ function tests.test_raw_html_tags_preserved()
            "kbd tag should be preserved")
 end
 
+-- Test blockquote bug: empty blockquote continuation lines should not create separate blockquotes
+function tests.test_blockquote_empty_continuation_bug()
+    local content = [[
+> **waffle**: verb - EQUIVOCATE, VACILLATE
+>
+> [Merriam-Webster](https://www.merriam-webster.com/dictionary/waffle)
+]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should contain blockquote tags
+    assert(result.html:find("<blockquote>") ~= nil, "Should contain blockquote opening tag")
+    assert(result.html:find("</blockquote>") ~= nil, "Should contain blockquote closing tag")
+
+    -- Count blockquote tags - should be exactly one opening and one closing
+    local open_count = 0
+    for _ in result.html:gmatch("<blockquote>") do
+        open_count = open_count + 1
+    end
+    local close_count = 0
+    for _ in result.html:gmatch("</blockquote>") do
+        close_count = close_count + 1
+    end
+    assert(open_count == 1, string.format("Expected 1 opening blockquote tag, but found %d", open_count))
+    assert(close_count == 1, string.format("Expected 1 closing blockquote tag, but found %d", close_count))
+
+    -- All content should be inside the single blockquote
+    assert(result.html:find("waffle") ~= nil, "First line content should be in blockquote")
+    assert(result.html:find("Merriam") ~= nil, "Link should be in blockquote")
+    assert(result.html:find("href=") ~= nil, "Link should be in blockquote")
+end
+
 return tests
 
