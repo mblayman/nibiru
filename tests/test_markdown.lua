@@ -256,10 +256,10 @@ function tests.test_multiline_ordered_list_items()
     assert(ol_count == 1, string.format("Expected 1 ordered list, but found %d", ol_count))
 end
 
--- Test that inline HTML tags are escaped
-function tests.test_inline_html_escaped()
+-- Test that safe inline HTML tags are preserved while unsafe ones are escaped
+function tests.test_inline_html_handling()
     local content = [[
-This is <em>emphasized</em> text with <strong>bold</strong> elements.
+This is <em>emphasized</em> text with <strong>bold</strong> elements and <sup>superscript</sup>.
 
 Also includes <a href="https://example.com">links</a> and <img src="test.jpg" alt="image">.
 ]]
@@ -267,15 +267,18 @@ Also includes <a href="https://example.com">links</a> and <img src="test.jpg" al
     assert.is_nil(err)
     assert.is_string(result.html)
 
-    -- HTML tags in regular text should be escaped
-    assert(result.html:find("&lt;em&gt;emphasized&lt;/em&gt;") ~= nil, "em tag should be escaped")
-    assert(result.html:find("&lt;strong&gt;bold&lt;/strong&gt;") ~= nil, "strong tag should be escaped")
+    -- Safe inline HTML tags should be preserved
+    assert(result.html:find("<em>emphasized</em>") ~= nil, "em tag should be preserved")
+    assert(result.html:find("<strong>bold</strong>") ~= nil, "strong tag should be preserved")
+    assert(result.html:find("<sup>superscript</sup>") ~= nil, "sup tag should be preserved")
+
+    -- Unsafe HTML tags should be escaped
     assert(result.html:find('&lt;a href=&quot;https://example.com&quot;&gt;links&lt;/a&gt;') ~= nil, "a tag should be escaped")
     assert(result.html:find('&lt;img src=&quot;test.jpg&quot; alt=&quot;image&quot;&gt;') ~= nil, "img tag should be escaped")
 
-    -- Ensure no unescaped HTML
-    assert(result.html:find("<em>") == nil, "HTML should be escaped")
-    assert(result.html:find("<strong>") == nil, "HTML should be escaped")
+    -- Ensure no unescaped unsafe HTML
+    assert(result.html:find("<a href=") == nil, "Unsafe HTML should be escaped")
+    assert(result.html:find("<img") == nil, "Unsafe HTML should be escaped")
 end
 
 -- Test HTML blocks (type 1: pre, script, style, textarea)
@@ -400,10 +403,10 @@ After div.
     assert(result.html:find('</div>') ~= nil, "closing div tag should be preserved")
 end
 
--- Test that HTML tags in paragraphs are escaped
-function tests.test_html_tags_in_paragraph_escaped()
+-- Test that HTML tags in code spans are escaped while safe inline HTML works in regular text
+function tests.test_html_in_code_vs_inline()
     local content = [[D3 uses SVG (Scalable Vector Graphics) to draw its shapes. It's possible to
-create a new `<svg>` tag on the fly, but I added the following to the HTML
+create a new `<svg>` tag on the fly, but I added <sup>superscript</sup> to the HTML
 source code.]]
 
     local result, err = markdown.parse(content)
@@ -413,6 +416,9 @@ source code.]]
     -- HTML tags in code spans should be escaped
     assert(string.find(result.html, '&lt;svg&gt;', 1, true) ~= nil, "svg tag should be escaped in code span")
     assert(result.html:find('<svg>') == nil, "svg tag should not be preserved unescaped")
+
+    -- Safe inline HTML should work in regular text
+    assert(result.html:find('<sup>superscript</sup>') ~= nil, "sup tag should be preserved in regular text")
 
     -- Regular markdown should still work
     assert(result.html:find('<p>') ~= nil, "Should be wrapped in paragraph tags")
@@ -581,6 +587,34 @@ gain such traction?
 
     -- Bold formatting should be preserved inside blockquote
     assert(result.html:find("<strong>as a requirement</strong>") ~= nil, "Bold formatting should work inside lazy blockquote")
+end
+
+-- Test that raw HTML tags like <sup> are preserved and not escaped
+function tests.test_raw_html_tags_preserved()
+    local content = "oscillating at 650 x 10<sup>12</sup> Hz"
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- The sup tag should be preserved as raw HTML (unescaped)
+    assert(result.html:find("<sup>12</sup>", 1, true) ~= nil,
+           "sup tag should be preserved as raw HTML")
+
+    -- Ensure no escaped HTML entities in the sup tag
+    assert(result.html:find("&lt;sup&gt;") == nil,
+           "sup tag should not be HTML-escaped")
+    assert(result.html:find("&lt;/sup&gt;") == nil,
+           "closing sup tag should not be HTML-escaped")
+
+    -- Test other common raw HTML tags
+    local content2 = "This is <sub>subscript</sub> and <kbd>Ctrl+C</kbd> text."
+    local result2, err2 = markdown.parse(content2)
+    assert.is_nil(err2)
+    assert(result2.html:find("<sub>subscript</sub>", 1, true) ~= nil,
+           "sub tag should be preserved")
+    assert(result2.html:find("<kbd>Ctrl+C</kbd>", 1, true) ~= nil,
+           "kbd tag should be preserved")
 end
 
 return tests

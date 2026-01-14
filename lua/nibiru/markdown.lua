@@ -397,11 +397,59 @@ end
 function parse_inline(text)
     if not text then return "" end
 
-    -- Escape HTML first
+    -- Define safe inline HTML tags that should be preserved
+    local safe_inline_tags = {
+        "sup", "sub", "kbd", "code", "em", "strong", "i", "b", "u", "s", "small",
+        "big", "cite", "dfn", "abbr", "acronym", "var", "samp", "tt", "mark",
+        "q", "time", "span", "br", "wbr"
+    }
+
+    -- Extract safe HTML tags and replace with placeholders
+    local html_placeholders = {}
+    local placeholder_counter = 0
+
+    -- Pattern to match safe HTML tags
+    for _, tag_name in ipairs(safe_inline_tags) do
+        -- Match complete opening tags: <tag> or <tag attrs>
+        local opening_pattern = "<" .. tag_name .. "[^>]*>"
+        text = text:gsub(opening_pattern, function(tag)
+            -- Check that this is exactly the tag we want (not a longer tag name)
+            local next_char = tag:sub(#tag_name + 2, #tag_name + 2)  -- Character after tag name
+            if not (next_char and next_char:match("[a-zA-Z]")) then
+                placeholder_counter = placeholder_counter + 1
+                local placeholder = "___HTML_TAG_PLACEHOLDER_" .. placeholder_counter .. "___"
+                html_placeholders[placeholder] = tag
+                return placeholder
+            end
+            return tag  -- Not our tag, leave it unchanged
+        end)
+
+        -- Match complete closing tags: </tag>
+        local closing_pattern = "</" .. tag_name .. "[^>]*>"
+        text = text:gsub(closing_pattern, function(tag)
+            -- Check that this is exactly the tag we want
+            local next_char = tag:sub(#tag_name + 3, #tag_name + 3)  -- Character after </tag
+            if not (next_char and next_char:match("[a-zA-Z]")) then
+                placeholder_counter = placeholder_counter + 1
+                local placeholder = "___HTML_TAG_PLACEHOLDER_" .. placeholder_counter .. "___"
+                html_placeholders[placeholder] = tag
+                return placeholder
+            end
+            return tag  -- Not our tag, leave it unchanged
+        end)
+    end
+
+    -- Escape HTML entities in the remaining text
     local result = escape_html(text)
 
-    -- Code spans (escape backticks in content)
-    result = result:gsub("`([^`\n]+)`", "<code>%1</code>")
+    -- Process code spans (content is already escaped)
+    result = result:gsub("`([^`\n]+)`", function(content)
+        local code_tag = "<code>" .. content .. "</code>"
+        placeholder_counter = placeholder_counter + 1
+        local placeholder = "___HTML_TAG_PLACEHOLDER_" .. placeholder_counter .. "___"
+        html_placeholders[placeholder] = code_tag
+        return placeholder
+    end)
 
     -- Strikethrough
     result = result:gsub("~~([^~\n]+)~~", "<del>%1</del>")
@@ -416,6 +464,11 @@ function parse_inline(text)
     -- Links and images
     result = result:gsub("!%[([^%]]+)%]%(([^%)]+)%)", '<img alt="%1" src="%2">')
     result = result:gsub("%[([^%]]+)%]%(([^%)]+)%)", '<a href="%2">%1</a>')
+
+    -- Restore safe HTML tags
+    for placeholder, tag in pairs(html_placeholders) do
+        result = result:gsub(placeholder, tag)
+    end
 
     return result
 end
