@@ -571,6 +571,112 @@ Invalid function usage results in clear error messages:
 {{ route() }}                    -- missing required route name
 ```
 
+## Custom Functions
+
+Register custom functions for domain-specific operations and complex logic that goes beyond simple value transformations:
+
+```lua
+-- Register a custom function
+Template.register_function("concat", function(context, a, b)
+    return tostring(a or "") .. tostring(b or "")
+end)
+
+-- Use in templates
+{{ concat("hello", "world") }}        -- "helloworld"
+{{ concat(user.first_name, user.last_name) }}  -- "JohnDoe"
+```
+
+Function functions receive the template context as the first argument, followed by any additional arguments passed in the template.
+
+### Function Registration
+
+Custom functions are registered globally and can be used in any template:
+
+```lua
+Template.register_function("format_date", function(context, date_string, format)
+    local date = context.parse_date and context.parse_date(date_string) or date_string
+    format = format or "%Y-%m-%d"
+    return os.date(format, date)
+end)
+
+Template.register_function("pluralize", function(context, count, singular, plural)
+    if count == 1 then
+        return singular
+    else
+        return plural or (singular .. "s")
+    end
+end)
+```
+
+### Using Functions in Templates
+
+Functions work in all template contexts:
+
+```lua
+{{ format_date(user.created_at, "%B %d, %Y") }}
+{{ pluralize(item_count, "item", "items") }}
+
+-- In components
+<div class="stats">
+    <span>{{ pluralize(posts.count, "post") }} by {{ user.name }}</span>
+    <small>Joined {{ format_date(user.join_date) }}</small>
+</div>
+```
+
+### Function Arguments
+
+Functions can accept literals, variables, or expressions as arguments:
+
+```lua
+{{ concat("Hello", " ") }}
+{{ format_date(user.birthday, "%m/%d/%Y") }}
+{{ pluralize(items |> length, "item") }}
+```
+
+### Function Signature
+
+Custom functions should follow this pattern:
+
+```lua
+function my_function(context, ...args)
+    -- Access template context variables
+    local user = context.user
+    local config = context.config
+
+    -- Perform operations
+    local result = do_something_with(args)
+
+    return result
+end
+```
+
+Functions should:
+- Handle `nil` inputs gracefully
+- Return appropriate values (strings for template output)
+- Access context data through the first parameter
+- Be pure functions when possible (avoid side effects)
+
+### Error Handling
+
+Invalid function usage results in clear error messages:
+
+- **Unknown functions**: `"Unknown function 'badfunc'"`
+- **Non-callable functions**: `"Function 'myfunc' is not a function"`
+
+```lua
+-- These will cause errors:
+{{ unknown_function("arg") }}
+Template.register_function("not_a_func", "string_value")
+{{ not_a_func() }}  -- "Function 'not_a_func' is not a function"
+```
+
+### Performance Notes
+
+- Functions are resolved at compile time, not runtime
+- Function calls generate direct Lua function invocations
+- No performance penalty for unused functions
+- Custom functions should be efficient to avoid template rendering bottlenecks
+
 ## Component System
 
 The template system is built around reusable components that can be composed together. Components are registered globally and can reference each other without explicit imports.
