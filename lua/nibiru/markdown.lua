@@ -141,9 +141,21 @@ function parse_markdown(text)
         -- Blockquote
         elseif line:match("^>%s*") then
             local blockquote_lines = {}
-            while i <= #lines and lines[i]:match("^>%s*") do
-                local content = lines[i]:gsub("^>%s*", "")
-                table.insert(blockquote_lines, content)
+            -- First line with >
+            local content = lines[i]:gsub("^>%s*", "")
+            table.insert(blockquote_lines, content)
+            i = i + 1
+
+            -- Continue collecting continuation lines until we hit a block boundary
+            while i <= #lines and lines[i]:match("%S") and
+                  not lines[i]:match("^#{1,6}%s+") and
+                  not lines[i]:match("^[-*_]{3,}$") and
+                  not lines[i]:match("^>%s*") and
+                  not lines[i]:match("^```") and
+                  not lines[i]:match("^[-*+]%s+") and
+                  not lines[i]:match("^%d+%.%s+") and
+                  not lines[i]:match("^|") do
+                table.insert(blockquote_lines, lines[i])
                 i = i + 1
             end
             local blockquote_content = table.concat(blockquote_lines, "\n")

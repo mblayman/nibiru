@@ -535,5 +535,53 @@ function tests.test_html_anchor_with_header()
            "Anchor tag should not contain escaped angle brackets")
 end
 
+-- Test lazy blockquotes (continuation lines without > marker)
+function tests.test_lazy_blockquotes()
+    local content = [[
+> Why then does this sentiment
+about deep understanding
+of software abstractions
+**as a requirement**
+gain such traction?
+]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should be a single blockquote containing all lines
+    assert(result.html:find("<blockquote>") ~= nil, "Should contain blockquote tag")
+    assert(result.html:find("</blockquote>") ~= nil, "Should contain closing blockquote tag")
+
+    -- Count blockquote tags - should be exactly one opening and one closing
+    local open_count = 0
+    for _ in result.html:gmatch("<blockquote>") do
+        open_count = open_count + 1
+    end
+    local close_count = 0
+    for _ in result.html:gmatch("</blockquote>") do
+        close_count = close_count + 1
+    end
+    assert(open_count == 1, string.format("Expected 1 opening blockquote tag, but found %d", open_count))
+    assert(close_count == 1, string.format("Expected 1 closing blockquote tag, but found %d", close_count))
+
+    -- Should have one paragraph inside the blockquote, none outside
+    local para_count = 0
+    for _ in result.html:gmatch("<p>") do
+        para_count = para_count + 1
+    end
+    assert(para_count == 1, string.format("Expected 1 paragraph inside blockquote, but found %d", para_count))
+
+    -- The blockquote content should contain all the text
+    assert(result.html:find("Why then does this sentiment") ~= nil, "First line should be in blockquote")
+    assert(result.html:find("about deep understanding") ~= nil, "Continuation line should be in blockquote")
+    assert(result.html:find("of software abstractions") ~= nil, "Another continuation line should be in blockquote")
+    assert(result.html:find("as a requirement") ~= nil, "Line with bold should be in blockquote")
+    assert(result.html:find("gain such traction") ~= nil, "Last line should be in blockquote")
+
+    -- Bold formatting should be preserved inside blockquote
+    assert(result.html:find("<strong>as a requirement</strong>") ~= nil, "Bold formatting should work inside lazy blockquote")
+end
+
 return tests
 
