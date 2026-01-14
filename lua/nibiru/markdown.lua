@@ -418,7 +418,8 @@ function parse_inline(text)
             if not (next_char and next_char:match("[a-zA-Z]")) then
                 placeholder_counter = placeholder_counter + 1
                 local placeholder = "___HTML_TAG_PLACEHOLDER_" .. placeholder_counter .. "___"
-                html_placeholders[placeholder] = tag
+                -- Escape % characters in tag for safe storage
+                html_placeholders[placeholder] = tag:gsub("%%", "%%%%")
                 return placeholder
             end
             return tag  -- Not our tag, leave it unchanged
@@ -432,7 +433,8 @@ function parse_inline(text)
             if not (next_char and next_char:match("[a-zA-Z]")) then
                 placeholder_counter = placeholder_counter + 1
                 local placeholder = "___HTML_TAG_PLACEHOLDER_" .. placeholder_counter .. "___"
-                html_placeholders[placeholder] = tag
+                -- Escape % characters in tag for safe storage
+                html_placeholders[placeholder] = tag:gsub("%%", "%%%%")
                 return placeholder
             end
             return tag  -- Not our tag, leave it unchanged
@@ -447,7 +449,8 @@ function parse_inline(text)
         local code_tag = "<code>" .. content .. "</code>"
         placeholder_counter = placeholder_counter + 1
         local placeholder = "___HTML_TAG_PLACEHOLDER_" .. placeholder_counter .. "___"
-        html_placeholders[placeholder] = code_tag
+        -- Escape % characters in tag for safe storage
+        html_placeholders[placeholder] = code_tag:gsub("%%", "%%%%")
         return placeholder
     end)
 
