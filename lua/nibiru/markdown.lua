@@ -462,9 +462,9 @@ function parse_inline(text)
     -- Strikethrough
     result = result:gsub("~~([^~\n]+)~~", "<del>%1</del>")
 
-    -- Bold
-    result = result:gsub("%*%*%*([^*]+)%*%*%*", "<strong><em>%1</em></strong>")
-    result = result:gsub("%*%*([^*]+)%*%*", "<strong>%1</strong>")
+    -- Bold (process first to handle nested italics correctly)
+    result = result:gsub("%*%*%*(.-)%*%*%*", "<strong><em>%1</em></strong>")
+    result = result:gsub("%*%*(.-)%*%*", "<strong>%1</strong>")
 
     -- Italic
     result = result:gsub("%*([^*]+)%*", "<em>%1</em>")

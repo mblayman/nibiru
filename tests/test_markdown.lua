@@ -651,5 +651,47 @@ function tests.test_blockquote_empty_continuation_bug()
     assert(result.html:find("href=") ~= nil, "Link should be in blockquote")
 end
 
+-- Test blockquote with bold text (demonstrates the reported bug)
+function tests.test_blockquote_bold_text_bug()
+    local content = [[
+> **What happens when a project
+adopts a tool that *automatically*
+sets the code style?**
+]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should contain blockquote tags
+    assert(result.html:find("<blockquote>") ~= nil, "Should contain blockquote opening tag")
+    assert(result.html:find("</blockquote>") ~= nil, "Should contain blockquote closing tag")
+
+    -- Should contain one paragraph inside blockquote
+    assert(result.html:find("<blockquote><p>") ~= nil, "Should have blockquote with paragraph")
+    assert(result.html:find("</p></blockquote>") ~= nil, "Should close paragraph and blockquote")
+
+    -- The entire content should be wrapped in bold tags
+    assert(result.html:find("<strong>What happens when a project") ~= nil, "Should start with strong tag")
+    local code_style_pos = result.html:find("sets the code style?")
+    local strong_close_pos = result.html:find("</strong>")
+    assert(code_style_pos ~= nil and strong_close_pos ~= nil and strong_close_pos > code_style_pos, "Should end with closing strong tag")
+
+    -- Italic should be preserved inside bold
+    assert(result.html:find("<em>automatically</em>") ~= nil, "Italic should be preserved inside bold")
+
+    -- Should NOT have italic tags around the entire content (the bug)
+    assert(result.html:find("<em>What happens when a project") == nil, "Should not have italic at start")
+    assert(result.html:find("sets the code style?</em>") == nil, "Should not have italic at end")
+
+    -- Should NOT have stray asterisks in the output
+    assert(result.html:find("*<em>") == nil, "Should not have stray asterisks")
+    local em_end_pos = result.html:find("</em>")
+    if em_end_pos then
+        local next_char = string.sub(result.html, em_end_pos + 1, em_end_pos + 1)
+        assert(next_char ~= "*", "Should not have asterisk after </em>")
+    end
+end
+
 return tests
 
