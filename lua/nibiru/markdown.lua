@@ -330,23 +330,46 @@ function parse_markdown(text)
                  table.insert(item_lines, content)
                  i = i + 1
 
-                 -- Continue collecting continuation lines until we hit a block boundary
-                 -- Allow blank lines within list items (they can contain multiple paragraphs)
-                 while i <= #lines and
-                       not lines[i]:match("^#{1,6}%s+") and
-                       not lines[i]:match("^[-*_]{3,}$") and
-                       not lines[i]:match("^>%s*") and
-                       not lines[i]:match("^[-*+]%s+") and
-                       not lines[i]:match("^%d+%.%s+") and
-                       not lines[i]:match("^|") do
-                     table.insert(item_lines, lines[i])
-                     i = i + 1
-                 end
+                  -- Continue collecting continuation lines until we hit a block boundary
+                  while i <= #lines and
+                        not lines[i]:match("^#{1,6}%s+") and
+                        not lines[i]:match("^[-*_]{3,}$") and
+                        not lines[i]:match("^>%s*") and
+                        not lines[i]:match("^[-*+]%s+") and
+                        not lines[i]:match("^%d+%.%s+") and
+                        not lines[i]:match("^|") do
+                     local current_line = lines[i]
+                     if current_line:match("^%s*$") then
+                         -- Blank line: check if next non-blank line should be included
+                         local next_non_blank_idx = i + 1
+                         while next_non_blank_idx <= #lines and lines[next_non_blank_idx]:match("^%s*$") do
+                             next_non_blank_idx = next_non_blank_idx + 1
+                         end
+                         if next_non_blank_idx <= #lines then
+                             local next_line = lines[next_non_blank_idx]
+                             -- Include blank line only if next non-blank line is indented or is a code block
+                             if next_line:match("^%s+") or next_line:match("^```") then
+                                 table.insert(item_lines, current_line)
+                                 i = i + 1
+                             else
+                                 -- Stop before this blank line - unindented content shouldn't be in list item
+                                 break
+                             end
+                         else
+                             -- End of input, include the blank line
+                             table.insert(item_lines, current_line)
+                             i = i + 1
+                         end
+                     else
+                         table.insert(item_lines, current_line)
+                         i = i + 1
+                     end
+                  end
 
-                 -- Join all lines for this list item and parse recursively (allows nested code blocks)
-                 local item_content = table.concat(item_lines, "\n")
-                 local parsed_item_content = parse_markdown(item_content)
-                 table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
+                  -- Join all lines for this list item and parse recursively (allows nested code blocks)
+                  local item_content = table.concat(item_lines, "\n")
+                  local parsed_item_content = parse_markdown(item_content)
+                  table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
              end
              table.insert(html_parts, string.format("<ul>%s</ul>", table.concat(list_items)))
 
@@ -360,25 +383,48 @@ function parse_markdown(text)
                  table.insert(item_lines, content)
                  i = i + 1
 
-                 -- Continue collecting continuation lines until we hit a block boundary
-                 -- Allow blank lines within list items (they can contain multiple paragraphs)
-                 while i <= #lines and
-                       not lines[i]:match("^#{1,6}%s+") and
-                       not lines[i]:match("^[-*_]{3,}$") and
-                       not lines[i]:match("^>%s*") and
-                       not lines[i]:match("^[-*+]%s+") and
-                       not lines[i]:match("^%d+%.%s+") and
-                       not lines[i]:match("^|") do
-                     table.insert(item_lines, lines[i])
-                     i = i + 1
-                 end
+                  -- Continue collecting continuation lines until we hit a block boundary
+                  while i <= #lines and
+                        not lines[i]:match("^#{1,6}%s+") and
+                        not lines[i]:match("^[-*_]{3,}$") and
+                        not lines[i]:match("^>%s*") and
+                        not lines[i]:match("^[-*+]%s+") and
+                        not lines[i]:match("^%d+%.%s+") and
+                        not lines[i]:match("^|") do
+                     local current_line = lines[i]
+                     if current_line:match("^%s*$") then
+                         -- Blank line: check if next non-blank line should be included
+                         local next_non_blank_idx = i + 1
+                         while next_non_blank_idx <= #lines and lines[next_non_blank_idx]:match("^%s*$") do
+                             next_non_blank_idx = next_non_blank_idx + 1
+                         end
+                         if next_non_blank_idx <= #lines then
+                             local next_line = lines[next_non_blank_idx]
+                             -- Include blank line only if next non-blank line is indented or is a code block
+                             if next_line:match("^%s+") or next_line:match("^```") then
+                                 table.insert(item_lines, current_line)
+                                 i = i + 1
+                             else
+                                 -- Stop before this blank line - unindented content shouldn't be in list item
+                                 break
+                             end
+                         else
+                             -- End of input, include the blank line
+                             table.insert(item_lines, current_line)
+                             i = i + 1
+                         end
+                     else
+                         table.insert(item_lines, current_line)
+                         i = i + 1
+                     end
+                  end
 
-                 -- Join all lines for this list item and parse recursively (allows nested code blocks)
-                 local item_content = table.concat(item_lines, "\n")
-                 local parsed_item_content = parse_markdown(item_content)
-                 table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
-             end
-             table.insert(html_parts, string.format("<ol>%s</ol>", table.concat(list_items)))
+                  -- Join all lines for this list item and parse recursively (allows nested code blocks)
+                  local item_content = table.concat(item_lines, "\n")
+                  local parsed_item_content = parse_markdown(item_content)
+                  table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
+              end
+              table.insert(html_parts, string.format("<ol>%s</ol>", table.concat(list_items)))
 
         -- Table
         elseif line:match("^|") and i + 1 <= #lines and lines[i + 1]:match("^|[-:]+|") then
