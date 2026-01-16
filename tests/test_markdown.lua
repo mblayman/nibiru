@@ -807,9 +807,9 @@ function tests.test_code_block_in_ordered_list()
     assert(result.html:find("python3") ~= nil, "List item should contain the code block content")
 end
 
--- Test code block within unordered list item
-function tests.test_code_block_in_unordered_list()
-    local content = [[
+ -- Test code block within unordered list item
+ function tests.test_code_block_in_unordered_list()
+     local content = [[
 * Start with a virtual environment.
 
     ```bash
@@ -817,38 +817,94 @@ function tests.test_code_block_in_unordered_list()
     ```
 ]]
 
-    local result, err = markdown.parse(content)
-    assert.is_nil(err)
-    assert.is_string(result.html)
+     local result, err = markdown.parse(content)
+     assert.is_nil(err)
+     assert.is_string(result.html)
 
-    -- Should contain an unordered list
-    assert(result.html:find("<ul>") ~= nil, "Should contain unordered list opening tag")
-    assert(result.html:find("</ul>") ~= nil, "Should contain unordered list closing tag")
+     -- Should contain an unordered list
+     assert(result.html:find("<ul>") ~= nil, "Should contain unordered list opening tag")
+     assert(result.html:find("</ul>") ~= nil, "Should contain unordered list closing tag")
 
-    -- Should contain exactly one list item
-    local li_count = 0
-    for _ in result.html:gmatch("<li>") do
-        li_count = li_count + 1
-    end
-    assert(li_count == 1, string.format("Expected 1 list item, but found %d", li_count))
+     -- Should contain exactly one list item
+     local li_count = 0
+     for _ in result.html:gmatch("<li>") do
+         li_count = li_count + 1
+     end
+     assert(li_count == 1, string.format("Expected 1 list item, but found %d", li_count))
 
-    -- The code block should be inside the list item, not a separate element
-    -- Check that <pre><code> appears after <li> and before </li>
-    local li_start = result.html:find("<li>")
-    local pre_start = result.html:find("<pre><code")
-    local li_end = result.html:find("</li>")
-    assert(li_start ~= nil and pre_start ~= nil and li_end ~= nil, "Should find li and pre tags")
-    assert(li_start < pre_start and pre_start < li_end, "Code block should be inside list item")
+     -- The code block should be inside the list item, not a separate element
+     -- Check that <pre><code> appears after <li> and before </li>
+     local li_start = result.html:find("<li>")
+     local pre_start = result.html:find("<pre><code")
+     local li_end = result.html:find("</li>")
+     assert(li_start ~= nil and pre_start ~= nil and li_end ~= nil, "Should find li and pre tags")
+     assert(li_start < pre_start and pre_start < li_end, "Code block should be inside list item")
 
-    -- Should NOT have the code block as a separate element after the list
-    local ul_end = result.html:find("</ul>")
-    local pre_after_list = result.html:find("<pre><code", ul_end)
-    assert(pre_after_list == nil, "Should not have code block after the list")
+     -- Should NOT have the code block as a separate element after the list
+     local ul_end = result.html:find("</ul>")
+     local pre_after_list = result.html:find("<pre><code", ul_end)
+     assert(pre_after_list == nil, "Should not have code block after the list")
 
-    -- The list item should contain both the text and the code block
-    assert(result.html:find("Start with a virtual environment") ~= nil, "List item should contain the text")
-    assert(result.html:find("python3") ~= nil, "List item should contain the code block content")
-end
+     -- The list item should contain both the text and the code block
+     assert(result.html:find("Start with a virtual environment") ~= nil, "List item should contain the text")
+     assert(result.html:find("python3") ~= nil, "List item should contain the code block content")
+ end
+
+ -- Test regression: list item should not include content after blank lines followed by unindented content
+ function tests.test_list_item_stops_at_unindented_content_after_blank()
+     local content = [[
+4. Run the development server.
+
+    ```bash
+    (venv)$ ./manage.py runserver
+    ```
+
+This is a pattern that you'll find
+in many of the Python web frameworks.
+
+### The Good
+]]
+
+     local result, err = markdown.parse(content)
+     assert.is_nil(err)
+     assert.is_string(result.html)
+
+     -- Should contain an ordered list
+     assert(result.html:find("<ol>") ~= nil, "Should contain ordered list opening tag")
+     assert(result.html:find("</ol>") ~= nil, "Should contain ordered list closing tag")
+
+     -- Should contain exactly one list item
+     local li_count = 0
+     for _ in result.html:gmatch("<li>") do
+         li_count = li_count + 1
+     end
+     assert(li_count == 1, string.format("Expected 1 list item, but found %d", li_count))
+
+     -- The header should NOT be inside the list item
+     local li_end = result.html:find("</li>")
+     local h3_start = result.html:find("<h3>")
+     assert(li_end ~= nil and h3_start ~= nil, "Should find li end and h3 tag")
+     assert(li_end < h3_start, "Header should be after the list item, not inside it")
+
+     -- The paragraph after the list should also be outside the list item
+     local p_after_list = result.html:find('<p>This is a pattern that you', li_end)
+     assert(p_after_list ~= nil, "Should find paragraph after list")
+     assert(li_end < p_after_list, "Paragraph should be after the list item")
+
+     -- The list item should contain the initial text and code block, but NOT the following paragraph or header
+     assert(result.html:find("Run the development server") ~= nil, "List item should contain the initial text")
+     assert(result.html:find("runserver") ~= nil, "List item should contain the code block")
+
+     -- Verify the paragraph is NOT inside the list item
+     local li_start = result.html:find("<li>")
+     local li_content = result.html:sub(li_start, li_end)
+     local para_in_list = li_content:find("This is a pattern that you'll find")
+     assert(para_in_list == nil, "Paragraph should not be inside the list item")
+
+     -- Verify the header is NOT inside the list item
+     local header_in_list = li_content:find("The Good")
+     assert(header_in_list == nil, "Header should not be inside the list item")
+ end
 
 -- Test that regular blockquotes still work alongside asides
 function tests.test_mixed_aside_and_blockquote()
