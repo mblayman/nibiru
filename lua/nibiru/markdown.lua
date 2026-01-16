@@ -164,7 +164,16 @@ function parse_markdown(text)
                 i = i + 1
             end
             local blockquote_content = table.concat(blockquote_lines, "\n")
-            table.insert(html_parts, string.format("<blockquote>%s</blockquote>", parse_markdown(blockquote_content)))
+
+            -- Check if this is an aside blockquote (starts with [!ASIDE])
+            if blockquote_lines[1] and blockquote_lines[1]:match("^%[!ASIDE%]%s*") then
+                -- Strip the [!ASIDE] marker from the first line
+                blockquote_lines[1] = blockquote_lines[1]:gsub("^%[!ASIDE%]%s*", "")
+                local aside_content = table.concat(blockquote_lines, "\n")
+                table.insert(html_parts, string.format("<aside>%s</aside>", parse_markdown(aside_content)))
+            else
+                table.insert(html_parts, string.format("<blockquote>%s</blockquote>", parse_markdown(blockquote_content)))
+            end
 
         -- HTML blocks (type 1: pre, script, style, textarea)
         elseif line:match("^%s*<pre%s*>") or line:match("^%s*<script%s*>") or

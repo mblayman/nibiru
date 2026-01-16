@@ -693,5 +693,107 @@ sets the code style?**
     end
 end
 
+-- Test aside blockquotes (new feature: > [!ASIDE] renders as <aside>)
+function tests.test_aside_blockquotes()
+    local content = [[
+> [!ASIDE]
+> This is an aside note.
+]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should contain aside tags instead of blockquote
+    assert(result.html:find("<aside>") ~= nil, "Should contain aside opening tag")
+    assert(result.html:find("</aside>") ~= nil, "Should contain aside closing tag")
+
+    -- Should NOT contain blockquote tags
+    assert(result.html:find("<blockquote>") == nil, "Should not contain blockquote opening tag")
+    assert(result.html:find("</blockquote>") == nil, "Should not contain blockquote closing tag")
+
+    -- Should contain the aside content
+    assert(result.html:find("This is an aside note") ~= nil, "Should contain the aside content")
+end
+
+-- Test multi-line aside blockquotes
+function tests.test_multiline_aside_blockquotes()
+    local content = [[
+> [!ASIDE]
+> This is the first line of the aside.
+> This is the second line.
+>
+> This is a continuation paragraph in the aside.
+]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should contain aside tags
+    assert(result.html:find("<aside>") ~= nil, "Should contain aside opening tag")
+    assert(result.html:find("</aside>") ~= nil, "Should contain aside closing tag")
+
+    -- Should NOT contain blockquote tags
+    assert(result.html:find("<blockquote>") == nil, "Should not contain blockquote opening tag")
+
+    -- Should contain all the aside content
+    assert(result.html:find("This is the first line of the aside") ~= nil, "Should contain first line")
+    assert(result.html:find("This is the second line") ~= nil, "Should contain second line")
+    assert(result.html:find("This is a continuation paragraph in the aside") ~= nil, "Should contain continuation paragraph")
+end
+
+-- Test aside blockquotes with content on the same line
+function tests.test_aside_single_line()
+    local content = "> [!ASIDE] This is an aside note on the same line."
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should contain aside tags instead of blockquote
+    assert(result.html:find("<aside>") ~= nil, "Should contain aside opening tag")
+    assert(result.html:find("</aside>") ~= nil, "Should contain aside closing tag")
+
+    -- Should NOT contain blockquote tags
+    assert(result.html:find("<blockquote>") == nil, "Should not contain blockquote opening tag")
+    assert(result.html:find("</blockquote>") == nil, "Should not contain blockquote closing tag")
+
+    -- Should contain the aside content
+    assert(result.html:find("This is an aside note on the same line") ~= nil, "Should contain the aside content")
+end
+
+-- Test that regular blockquotes still work alongside asides
+function tests.test_mixed_aside_and_blockquote()
+    local content = [[
+> [!ASIDE]
+> This is an aside.
+
+> This is a regular blockquote.
+
+> [!ASIDE]
+> Another aside.
+]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should contain aside tags
+    local aside_open_count = 0
+    for _ in result.html:gmatch("<aside>") do
+        aside_open_count = aside_open_count + 1
+    end
+    assert(aside_open_count == 2, string.format("Expected 2 aside opening tags, but found %d", aside_open_count))
+
+    -- Should contain blockquote tags
+    assert(result.html:find("<blockquote>") ~= nil, "Should contain blockquote opening tag")
+
+    -- Content should be in correct tags
+    assert(result.html:find("This is an aside") ~= nil, "Should contain aside content")
+    assert(result.html:find("This is a regular blockquote") ~= nil, "Should contain blockquote content")
+    assert(result.html:find("Another aside") ~= nil, "Should contain second aside content")
+end
+
 return tests
 

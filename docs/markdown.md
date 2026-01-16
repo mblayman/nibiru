@@ -202,6 +202,37 @@ end
 > with multiple lines
 ```
 
+#### Aside Blockquotes
+
+Nibiru supports a special aside blockquote syntax inspired by GitHub Markdown. Blockquotes that start with `[!ASIDE]` are rendered as semantic `<aside>` HTML elements instead of `<blockquote>` elements.
+
+```markdown
+> [!ASIDE]
+> This is an aside note that will be rendered
+> as an `<aside>` HTML element.
+
+> [!ASIDE] You can also write aside content on the same line.
+```
+
+**Rendered HTML:**
+```html
+<aside>
+<p>This is an aside note that will be rendered as an <code>&lt;aside&gt;</code> HTML element.</p>
+</aside>
+
+<aside>
+<p>You can also write aside content on the same line.</p>
+</aside>
+```
+
+Aside blockquotes are useful for:
+- Side notes and annotations
+- Supplementary information
+- Highlighted content that differs from regular quotations
+- Content that should be visually distinct from standard blockquotes
+
+The `[!ASIDE]` marker is not included in the rendered output.
+
 ### Tables
 
 ```markdown
