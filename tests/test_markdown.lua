@@ -763,6 +763,93 @@ function tests.test_aside_single_line()
     assert(result.html:find("This is an aside note on the same line") ~= nil, "Should contain the aside content")
 end
 
+-- Test code block within ordered list item (reproduces the reported bug)
+function tests.test_code_block_in_ordered_list()
+    local content = [[
+1. Start with a virtual environment.
+
+    ```bash
+    $ python3 -m venv venv && source venv/bin/activate
+    ```
+]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should contain an ordered list
+    assert(result.html:find("<ol>") ~= nil, "Should contain ordered list opening tag")
+    assert(result.html:find("</ol>") ~= nil, "Should contain ordered list closing tag")
+
+    -- Should contain exactly one list item
+    local li_count = 0
+    for _ in result.html:gmatch("<li>") do
+        li_count = li_count + 1
+    end
+    assert(li_count == 1, string.format("Expected 1 list item, but found %d", li_count))
+
+    -- The code block should be inside the list item, not a separate element
+    -- Check that <pre><code> appears after <li> and before </li>
+    local li_start = result.html:find("<li>")
+    local pre_start = result.html:find("<pre><code")
+    local li_end = result.html:find("</li>")
+    assert(li_start ~= nil and pre_start ~= nil and li_end ~= nil, "Should find li and pre tags")
+    assert(li_start < pre_start and pre_start < li_end, "Code block should be inside list item")
+
+    -- Should NOT have the code block as a separate element after the list
+    -- Check that there are no <pre><code> tags after </ol>
+    local ol_end = result.html:find("</ol>")
+    local pre_after_list = result.html:find("<pre><code", ol_end)
+    assert(pre_after_list == nil, "Should not have code block after the list")
+
+    -- The list item should contain both the text and the code block
+    assert(result.html:find("Start with a virtual environment") ~= nil, "List item should contain the text")
+    assert(result.html:find("python3") ~= nil, "List item should contain the code block content")
+end
+
+-- Test code block within unordered list item
+function tests.test_code_block_in_unordered_list()
+    local content = [[
+* Start with a virtual environment.
+
+    ```bash
+    $ python3 -m venv venv && source venv/bin/activate
+    ```
+]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should contain an unordered list
+    assert(result.html:find("<ul>") ~= nil, "Should contain unordered list opening tag")
+    assert(result.html:find("</ul>") ~= nil, "Should contain unordered list closing tag")
+
+    -- Should contain exactly one list item
+    local li_count = 0
+    for _ in result.html:gmatch("<li>") do
+        li_count = li_count + 1
+    end
+    assert(li_count == 1, string.format("Expected 1 list item, but found %d", li_count))
+
+    -- The code block should be inside the list item, not a separate element
+    -- Check that <pre><code> appears after <li> and before </li>
+    local li_start = result.html:find("<li>")
+    local pre_start = result.html:find("<pre><code")
+    local li_end = result.html:find("</li>")
+    assert(li_start ~= nil and pre_start ~= nil and li_end ~= nil, "Should find li and pre tags")
+    assert(li_start < pre_start and pre_start < li_end, "Code block should be inside list item")
+
+    -- Should NOT have the code block as a separate element after the list
+    local ul_end = result.html:find("</ul>")
+    local pre_after_list = result.html:find("<pre><code", ul_end)
+    assert(pre_after_list == nil, "Should not have code block after the list")
+
+    -- The list item should contain both the text and the code block
+    assert(result.html:find("Start with a virtual environment") ~= nil, "List item should contain the text")
+    assert(result.html:find("python3") ~= nil, "List item should contain the code block content")
+end
+
 -- Test that regular blockquotes still work alongside asides
 function tests.test_mixed_aside_and_blockquote()
     local content = [[
