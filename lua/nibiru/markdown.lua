@@ -192,14 +192,14 @@ function parse_markdown(text)
             table.insert(blockquote_lines, content)
             i = i + 1
 
-            -- Continue collecting continuation lines until we hit a block boundary
-            while i <= #lines and lines[i]:match("%S") and
-                  not lines[i]:match("^#{1,6}%s+") and
-                  not lines[i]:match("^[-*_]{3,}$") and
-                  not lines[i]:match("^```") and
-                  not lines[i]:match("^[-*+]%s+") and
-                  not lines[i]:match("^%d+%.%s+") and
-                  not lines[i]:match("^|") do
+                   -- Continue collecting continuation lines until we hit a block boundary
+                    while i <= #lines and
+                          not lines[i]:match("^#{1,6}%s+") and
+                          not lines[i]:match("^[-*_]{3,}$") and
+                          not lines[i]:match("^>%s+") and
+                          not lines[i]:gsub("^%s+", ""):match("^[-*+]%s+") and
+                          not lines[i]:gsub("^%s+", ""):match("^%d+%.%s+") and
+                   not lines[i]:match("^|") do
                 -- If this line starts with >, strip the marker and include it
                 if lines[i]:match("^>%s*") then
                     local content = lines[i]:gsub("^>%s*", "")
@@ -367,12 +367,13 @@ function parse_markdown(text)
             end
 
          -- Unordered list
-         elseif line:match("^[-*+]%s+") then
+         elseif line:match("^%s*[-*+]%s+") then
              local list_items = {}
-             while i <= #lines and lines[i]:match("^[-*+]%s+") do
-                 -- Collect all lines for this list item
-                 local item_lines = {}
-                 local content = lines[i]:gsub("^[-*+]%s+", "")
+             while i <= #lines and lines[i]:match("^%s*[-*+]%s+") do
+                  -- Collect all lines for this list item
+                  local item_lines = {}
+                  local trimmed_line = lines[i]:gsub("^%s+", "")
+                  local content = trimmed_line:gsub("^[-*+]%s+", "")
                  table.insert(item_lines, content)
                  i = i + 1
 
@@ -419,13 +420,14 @@ function parse_markdown(text)
              end
              table.insert(html_parts, string.format("<ul>%s</ul>", table.concat(list_items)))
 
-         -- Ordered list
-         elseif line:match("^%d+%.%s+") then
-             local list_items = {}
-             while i <= #lines and lines[i]:match("^%d+%.%s+") do
-                 -- Collect all lines for this list item
-                 local item_lines = {}
-                 local content = lines[i]:gsub("^%d+%.%s+", "")
+          -- Ordered list
+          elseif line:match("^%s*%d+%.%s+") then
+              local list_items = {}
+              while i <= #lines and lines[i]:match("^%s*%d+%.%s+") do
+                  -- Collect all lines for this list item
+                  local item_lines = {}
+                  local trimmed_line = lines[i]:gsub("^%s+", "")
+                  local content = trimmed_line:gsub("^%d+%.%s+", "")
                  table.insert(item_lines, content)
                  i = i + 1
 
@@ -484,7 +486,8 @@ function parse_markdown(text)
                 -- Collect paragraph lines
                 local para_lines = {line}
                 i = i + 1
-                while i <= #lines and lines[i]:match("%S") and not lines[i]:match("^#{1,6}%s+") and not lines[i]:match("^[-*_]{3,}$") and not lines[i]:match("^>%s*") and not lines[i]:match("^```") and not lines[i]:match("^[-*+]%s+") and not lines[i]:match("^%d+%.%s+") and not lines[i]:match("^|") do
+                while i <= #lines and lines[i]:match("%S") and not lines[i]:match("^#{1,6}%s+") and not lines[i]:match("^[-*_]{3,}$") and not lines[i]:match("^>%s*") and not lines[i]:match("^```") and                          not lines[i]:gsub("^%s+", ""):match("^[-*+]%s+") and
+                         not lines[i]:gsub("^%s+", ""):match("^%d+%.%s+") and not lines[i]:match("^|") do
                         table.insert(para_lines, lines[i])
                         i = i + 1
                 end

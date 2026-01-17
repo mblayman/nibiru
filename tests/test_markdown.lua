@@ -1241,9 +1241,32 @@ with discussion about containers.
   assert(result.html:find('<p>Another popular mode of development') ~= nil,
          "Should contain separate paragraph after footnote")
 
-  -- Should contain the blockquote as separate content
-  assert(result.html:find('<blockquote>') ~= nil, "Should contain separate blockquote")
-end
+   -- Should contain the blockquote as separate content
+   assert(result.html:find('<blockquote>') ~= nil, "Should contain separate blockquote")
+ end
 
-return tests
+ -- Test indented list markers are recognized as separate list items
+ function tests.test_indented_list_markers()
+   local content = [[* Coffee
+ * Soda
+ * Tea]]
+
+   local result, err = markdown.parse(content)
+   assert.is_nil(err)
+   assert.is_string(result.html)
+
+   -- Should contain list items
+   local li_count = 0
+   for _ in result.html:gmatch("<li>") do
+     li_count = li_count + 1
+   end
+   assert(li_count == 3, string.format("Expected 3 li, but found %d", li_count))
+
+    -- Should contain all items
+    assert(result.html:find("Coffee") ~= nil, "Should contain Coffee item")
+    assert(result.html:find("Soda") ~= nil, "Should contain Soda item")
+    assert(result.html:find("Tea") ~= nil, "Should contain Tea item")
+ end
+
+ return tests
 
