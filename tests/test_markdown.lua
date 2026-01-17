@@ -1245,47 +1245,81 @@ with discussion about containers.
    assert(result.html:find('<blockquote>') ~= nil, "Should contain separate blockquote")
  end
 
- -- Test indented list markers are recognized as separate list items
- function tests.test_indented_list_markers()
-   local content = [[* Coffee
- * Soda
- * Tea]]
+  -- Test indented list markers are recognized as separate list items
+  function tests.test_indented_list_markers()
+    local content = [[* Coffee
+  * Soda
+  * Tea]]
 
-   local result, err = markdown.parse(content)
-   assert.is_nil(err)
-   assert.is_string(result.html)
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
 
-   -- Should contain exactly one top-level ul
-   local ul_count = 0
-   for _ in result.html:gmatch("<ul>") do
-     ul_count = ul_count + 1
-   end
-   assert(ul_count == 1, string.format("Expected 1 ul, but found %d", ul_count))
+    -- Should contain exactly one top-level ul
+    local ul_count = 0
+    for _ in result.html:gmatch("<ul>") do
+      ul_count = ul_count + 1
+    end
+    assert(ul_count == 1, string.format("Expected 1 ul, but found %d", ul_count))
 
-   -- Should contain exactly 3 li
-   local li_count = 0
-   for _ in result.html:gmatch("<li>") do
-     li_count = li_count + 1
-   end
-   assert(li_count == 3, string.format("Expected 3 li, but found %d", li_count))
+    -- Should contain exactly 3 li
+    local li_count = 0
+    for _ in result.html:gmatch("<li>") do
+      li_count = li_count + 1
+    end
+    assert(li_count == 3, string.format("Expected 3 li, but found %d", li_count))
 
-   -- Should not have nested ul inside li
-   assert(result.html:find("<li>") ~= nil, "Should have li tags")
-   local li_start = result.html:find("<li>")
-   if li_start then
-     local li_content = result.html:sub(li_start)
-     local nested_ul = li_content:find("<ul>")
-     assert(nested_ul == nil, "Should not have nested ul inside li")
-   end
+    -- Should not have nested ul inside li
+    assert(result.html:find("<li>") ~= nil, "Should have li tags")
+    local li_start = result.html:find("<li>")
+    if li_start then
+      local li_content = result.html:sub(li_start)
+      local nested_ul = li_content:find("<ul>")
+      assert(nested_ul == nil, "Should not have nested ul inside li")
+    end
 
-   -- Should contain all items
-   assert(result.html:find("Coffee") ~= nil, "Should contain Coffee item")
-   assert(result.html:find("Soda") ~= nil, "Should contain Soda item")
-   assert(result.html:find("Tea") ~= nil, "Should contain Tea item")
+    -- Should contain all items
+    assert(result.html:find("Coffee") ~= nil, "Should contain Coffee item")
+    assert(result.html:find("Soda") ~= nil, "Should contain Soda item")
+    assert(result.html:find("Tea") ~= nil, "Should contain Tea item")
 
-   -- Should have the correct structure: <ul><li><p>Coffee</p></li><li><p>Soda</p></li><li><p>Tea</p></li></ul>
-   assert(result.html:find("<ul><li><p>Coffee</p></li><li><p>Soda</p></li><li><p>Tea</p></li></ul>") ~= nil, "Should have correct flat list structure")
- end
+    -- Should have the correct structure: <ul><li>Coffee</li><li>Soda</li><li>Tea</li></ul>
+    assert(result.html:find("<ul><li>Coffee</li><li>Soda</li><li>Tea</li></ul>") ~= nil, "Should have correct flat list structure")
+  end
+
+  -- Test that simple list items don't have unnecessary paragraph tags
+  function tests.test_simple_list_items_no_paragraph_tags()
+    local content = [[
+* Soda
+* Tea
+* Chocolate
+]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should contain an unordered list
+    assert(result.html:find("<ul>") ~= nil, "Should contain unordered list")
+    assert(result.html:find("</ul>") ~= nil, "Should contain closing unordered list")
+
+    -- Should contain exactly 3 list items
+    local li_count = 0
+    for _ in result.html:gmatch("<li>") do
+      li_count = li_count + 1
+    end
+    assert(li_count == 3, string.format("Expected 3 list items, but found %d", li_count))
+
+    -- Should NOT contain paragraph tags inside list items for simple content
+    assert(result.html:find("<li><p>Soda</p></li>") == nil, "Should not wrap simple list items in paragraph tags")
+    assert(result.html:find("<li><p>Tea</p></li>") == nil, "Should not wrap simple list items in paragraph tags")
+    assert(result.html:find("<li><p>Chocolate</p></li>") == nil, "Should not wrap simple list items in paragraph tags")
+
+    -- Should contain simple list items without paragraph tags
+    assert(result.html:find("<li>Soda</li>") ~= nil, "Should have simple list item without paragraph tags")
+    assert(result.html:find("<li>Tea</li>") ~= nil, "Should have simple list item without paragraph tags")
+    assert(result.html:find("<li>Chocolate</li>") ~= nil, "Should have simple list item without paragraph tags")
+  end
 
  return tests
 

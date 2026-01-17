@@ -412,14 +412,20 @@ function parse_markdown(text, parse_lists)
                          table.insert(item_lines, current_line)
                          i = i + 1
                      end
-                  end
+               end
 
-                   -- Join all lines for this list item and parse recursively (allows nested code blocks but not lists)
-                   local item_content = table.concat(item_lines, "\n")
-                   local parsed_item_content = parse_markdown(item_content, false)
-                   table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
-              end
-              table.insert(html_parts, string.format("<ul>%s</ul>", table.concat(list_items)))
+                    -- Join all lines for this list item and parse recursively (allows nested code blocks but not lists)
+                    local item_content = table.concat(item_lines, "\n")
+                    local parsed_item_content = parse_markdown(item_content, false)
+
+                    -- If the content is just a single paragraph, unwrap it to avoid unnecessary <p> tags
+                    if parsed_item_content:match("^<p>") and parsed_item_content:match("</p>$") and parsed_item_content:find("<p>", 4) == nil then
+                        parsed_item_content = parsed_item_content:match("^<p>(.+)</p>$")
+                    end
+
+                    table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
+               end
+               table.insert(html_parts, string.format("<ul>%s</ul>", table.concat(list_items)))
 
            -- Ordered list
            elseif parse_lists and line:match("^%s*%d+%.%s+") then
@@ -466,14 +472,20 @@ function parse_markdown(text, parse_lists)
                          table.insert(item_lines, current_line)
                          i = i + 1
                      end
-                  end
+                   end
 
-                   -- Join all lines for this list item and parse recursively (allows nested code blocks but not lists)
-                   local item_content = table.concat(item_lines, "\n")
-                   local parsed_item_content = parse_markdown(item_content, false)
-                   table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
-               end
-               table.insert(html_parts, string.format("<ol>%s</ol>", table.concat(list_items)))
+                    -- Join all lines for this list item and parse recursively (allows nested code blocks but not lists)
+                    local item_content = table.concat(item_lines, "\n")
+                    local parsed_item_content = parse_markdown(item_content, false)
+
+                    -- If the content is just a single paragraph, unwrap it to avoid unnecessary <p> tags
+                    if parsed_item_content:match("^<p>") and parsed_item_content:match("</p>$") and parsed_item_content:find("<p>", 4) == nil then
+                        parsed_item_content = parsed_item_content:match("^<p>(.+)</p>$")
+                    end
+
+                    table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
+                end
+                table.insert(html_parts, string.format("<ol>%s</ol>", table.concat(list_items)))
 
         -- Table
         elseif line:match("^|") and i + 1 <= #lines and lines[i + 1]:match("^|[-:]+|") then
