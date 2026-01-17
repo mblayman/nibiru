@@ -1036,13 +1036,19 @@ This is a new paragraph in the footnote.
   assert(result.html:find('<sup id="fnref:1"><a href="#fn:1" class="footnote%-ref" role="doc%-noteref">1</a></sup>') ~= nil,
          "Should contain footnote reference")
 
-  -- Should contain footnote definition with multiple paragraphs
+  -- Should contain footnote definition with first part
   assert(result.html:find('<li id="fn:1"><p>This is the first line of the footnote%.') ~= nil,
-         "Should contain first paragraph of footnote")
-  assert(result.html:find('This is the second line%.</p>') ~= nil,
-         "Should contain second line in first paragraph")
-  assert(result.html:find('<p>This is a new paragraph in the footnote%.&#160;<a href="#fnref:1" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
-         "Should contain second paragraph of footnote")
+         "Should contain first part of footnote")
+  assert(result.html:find('This is the second line%.&#160;') ~= nil,
+         "Should contain second line in footnote")
+
+  -- The footnote should not contain the content after the blank line
+  assert(result.html:find('<li id="fn:1">.*This is a new paragraph in the footnote') == nil,
+         "Footnote should not contain content after blank line")
+
+  -- The content after the blank line should be separate
+  assert(result.html:find('This is a new paragraph in the footnote') ~= nil,
+         "Content after blank line should be separate")
 end
 
 -- Test footnote without definition (should handle gracefully)
@@ -1149,6 +1155,94 @@ First reference.[^1] Second reference to same footnote.[^1]
   -- Should contain one footnote definition
   assert(result.html:find('<li id="fn:1"><p>This footnote is referenced twice%.&#160;<a href="#fnref:1" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
          "Should contain footnote definition")
+end
+
+-- Test footnote definition stopping at blank line
+function tests.test_footnote_stops_at_blank_line()
+  local content = [[
+This has a footnote.[^1]
+
+[^1]: This is the footnote content.
+
+This paragraph should NOT be part of the footnote.
+
+Another paragraph that should also be separate.
+
+> This blockquote should also be separate.
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should contain footnote reference
+  assert(result.html:find('<sup id="fnref:1"><a href="#fn:1" class="footnote%-ref" role="doc%-noteref">1</a></sup>') ~= nil,
+         "Should contain footnote reference")
+
+  -- Should contain footnote definition with only the first line
+  assert(result.html:find('<li id="fn:1"><p>This is the footnote content%.&#160;<a href="#fnref:1" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
+         "Should contain footnote definition with correct content")
+
+  -- Should NOT contain the paragraphs in the footnote
+  assert(result.html:find('<li id="fn:1"><p>.-This paragraph should NOT be part of the footnote') == nil,
+         "Footnote should not contain the following paragraph")
+
+  -- The footnote should not contain the following content
+  assert(result.html:find('<li id="fn:1">.*This paragraph should NOT') == nil,
+         "Footnote should not contain the following paragraph")
+
+  -- The paragraph should appear as regular content
+  assert(result.html:find('This paragraph should NOT be part of the footnote') ~= nil,
+         "Paragraph should appear as regular content")
+
+  -- Blockquote should also be separate
+  assert(result.html:find('<blockquote>') ~= nil, "Should contain separate blockquote")
+end
+
+-- Test the user's specific example
+function tests.test_user_footnote_example()
+  local content = [[
+## It's over 9000!![^1]
+
+[^1]: [My inner teenager wants to come out.](https://www.youtube.com/watch?v=SiMHTK15Pik)
+
+Another popular mode of development uses a design
+that bundles dependencies
+and a web app
+into a single unit.
+This unit is a *container*.
+
+Containers became popular a few years ago
+when [Docker](https://www.docker.com/) solidified.
+Since that time,
+the software industry is abuzz
+with discussion about containers.
+
+> Why? Why would you reach for containers for your app?
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should contain the header with footnote reference
+  assert(result.html:find("<h2>It&#39;s over 9000!!<sup id=\"fnref:1\">") ~= nil,
+         "Should contain header with footnote reference")
+
+  -- Should contain footnote definition
+  assert(result.html:find('<li id="fn:1"><p><a href="https://www.youtube.com/watch%?v=SiMHTK15Pik">My inner teenager wants to come out%.</a>&#160;<a href="#fnref:1" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
+         "Should contain footnote definition with link")
+
+  -- Should NOT contain the following paragraphs in the footnote
+  assert(result.html:find('<li id="fn:1">.*Another popular mode of development') == nil,
+         "Footnote should not contain the following content")
+
+  -- The following content should be regular paragraphs
+  assert(result.html:find('<p>Another popular mode of development') ~= nil,
+         "Should contain separate paragraph after footnote")
+
+  -- Should contain the blockquote as separate content
+  assert(result.html:find('<blockquote>') ~= nil, "Should contain separate blockquote")
 end
 
 return tests

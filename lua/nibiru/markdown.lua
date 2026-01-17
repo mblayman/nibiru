@@ -114,6 +114,8 @@ function parse_markdown(text)
         return ""
     end
 
+
+
     local lines = {}
     for line in text:gmatch("[^\n]*") do
         table.insert(lines, line)
@@ -139,12 +141,13 @@ function parse_markdown(text)
             -- (but allow blank lines within footnotes for paragraph separation)
             while j <= #lines do
                 local next_line = lines[j]
-                if next_line:match("^%[%^[^%]]+%]:") or next_line:match("^#{1,6}%s+") or
+
+                if next_line == "" or next_line:match("^%[%^[^%]]+%]:") or next_line:match("^#{1,6}%s+") or
                    next_line:match("^[-*_]{3,}$") or next_line:match("^>%s*") or
                    next_line:match("^```") or next_line:match("^[-*+]%s+") or
                    next_line:match("^%d+%.%s+") or next_line:match("^|") or
                    next_line:match("^%s*<") then
-                    -- Stop if we hit another footnote definition or other block element
+                    -- Stop if we hit an empty line, another footnote definition, or another block element
                     j = j - 1
                     break
                 end
