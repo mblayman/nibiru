@@ -1255,17 +1255,36 @@ with discussion about containers.
    assert.is_nil(err)
    assert.is_string(result.html)
 
-   -- Should contain list items
+   -- Should contain exactly one top-level ul
+   local ul_count = 0
+   for _ in result.html:gmatch("<ul>") do
+     ul_count = ul_count + 1
+   end
+   assert(ul_count == 1, string.format("Expected 1 ul, but found %d", ul_count))
+
+   -- Should contain exactly 3 li
    local li_count = 0
    for _ in result.html:gmatch("<li>") do
      li_count = li_count + 1
    end
    assert(li_count == 3, string.format("Expected 3 li, but found %d", li_count))
 
-    -- Should contain all items
-    assert(result.html:find("Coffee") ~= nil, "Should contain Coffee item")
-    assert(result.html:find("Soda") ~= nil, "Should contain Soda item")
-    assert(result.html:find("Tea") ~= nil, "Should contain Tea item")
+   -- Should not have nested ul inside li
+   assert(result.html:find("<li>") ~= nil, "Should have li tags")
+   local li_start = result.html:find("<li>")
+   if li_start then
+     local li_content = result.html:sub(li_start)
+     local nested_ul = li_content:find("<ul>")
+     assert(nested_ul == nil, "Should not have nested ul inside li")
+   end
+
+   -- Should contain all items
+   assert(result.html:find("Coffee") ~= nil, "Should contain Coffee item")
+   assert(result.html:find("Soda") ~= nil, "Should contain Soda item")
+   assert(result.html:find("Tea") ~= nil, "Should contain Tea item")
+
+   -- Should have the correct structure: <ul><li><p>Coffee</p></li><li><p>Soda</p></li><li><p>Tea</p></li></ul>
+   assert(result.html:find("<ul><li><p>Coffee</p></li><li><p>Soda</p></li><li><p>Tea</p></li></ul>") ~= nil, "Should have correct flat list structure")
  end
 
  return tests
