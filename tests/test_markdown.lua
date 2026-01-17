@@ -1321,5 +1321,86 @@ with discussion about containers.
     assert(result.html:find("<li>Chocolate</li>") ~= nil, "Should have simple list item without paragraph tags")
   end
 
+  -- Test nested lists: ordered list inside unordered list item
+  function tests.test_nested_ordered_list_in_unordered_list()
+    local content = [[
+* Do a search to populate the quickfix list
+    with the thing I wanted to change.
+* Start recording a macro that would:
+    1. Go to the next quickfix item.
+    2. Make the change.
+    3. Write the file.
+    4. *Call the macro.*
+* Stop recording the macro.
+* Run the macro.
+    The macro would then call itself continuously
+    until there were no more items
+    in the quickfix list.
+]]
+
+    local result, err = markdown.parse(content)
+    assert.is_nil(err)
+    assert.is_string(result.html)
+
+    -- Should contain one unordered list
+    local ul_count = 0
+    for _ in result.html:gmatch("<ul>") do
+      ul_count = ul_count + 1
+    end
+    assert(ul_count == 1, string.format("Expected 1 unordered list, but found %d", ul_count))
+
+    -- Should contain one ordered list
+    local ol_count = 0
+    for _ in result.html:gmatch("<ol>") do
+      ol_count = ol_count + 1
+    end
+    assert(ol_count == 1, string.format("Expected 1 ordered list, but found %d", ol_count))
+
+    -- The ordered list should be nested inside the unordered list
+    -- Check that <ol> appears between <ul> and </ul>
+    local ul_start = result.html:find("<ul>")
+    local ul_end = result.html:find("</ul>")
+    local ol_start = result.html:find("<ol>")
+    assert(ul_start < ol_start and ol_start < ul_end, "Ordered list should be nested inside unordered list")
+
+    -- Count total list items - should be 4 unordered + 4 ordered = 8
+    local total_li_count = 0
+    for _ in result.html:gmatch("<li>") do
+      total_li_count = total_li_count + 1
+    end
+    assert(total_li_count == 8, string.format("Expected 8 total list items (4 unordered + 4 ordered), but found %d", total_li_count))
+
+    -- Count ordered list items specifically - should be 4
+    local ol_li_count = 0
+    local ol_content_start = result.html:find("<ol>")
+    local ol_content_end = result.html:find("</ol>")
+    local ol_section = result.html:sub(ol_content_start, ol_content_end)
+    for _ in ol_section:gmatch("<li>") do
+      ol_li_count = ol_li_count + 1
+    end
+    assert(ol_li_count == 4, string.format("Expected 4 list items in ordered list, but found %d", ol_li_count))
+
+    -- Verify specific content is in the correct places
+    assert(result.html:find("Do a search to populate the quickfix list") ~= nil, "Should contain first unordered list item")
+    assert(result.html:find("Start recording a macro that would:") ~= nil, "Should contain second unordered list item start")
+    assert(result.html:find("Go to the next quickfix item") ~= nil, "Should contain first ordered list item")
+    assert(result.html:find("Make the change") ~= nil, "Should contain second ordered list item")
+    assert(result.html:find("Write the file") ~= nil, "Should contain third ordered list item")
+    assert(result.html:find("<em>Call the macro.</em>") ~= nil, "Should contain fourth ordered list item with emphasis")
+    assert(result.html:find("Stop recording the macro") ~= nil, "Should contain third unordered list item")
+    assert(result.html:find("Run the macro") ~= nil, "Should contain fourth unordered list item start")
+    assert(result.html:find("The macro would then call itself continuously") ~= nil, "Should contain continuation paragraph in fourth unordered list item")
+
+    -- The ordered list should NOT appear as a separate list after the unordered list
+    local ol_after_ul = result.html:find("</ul>.-<ol>", ul_end)
+    assert(ol_after_ul == nil, "Ordered list should not appear as separate list after unordered list")
+
+    -- Verify the structure: the ordered list should come after "Start recording a macro that would:" but before "Stop recording"
+    local macro_start_pos = result.html:find("Start recording a macro that would:")
+    local ol_pos = result.html:find("<ol>")
+    local stop_pos = result.html:find("Stop recording the macro")
+    assert(macro_start_pos < ol_pos and ol_pos < stop_pos, "Ordered list should appear within the second unordered list item")
+  end
+
  return tests
 
