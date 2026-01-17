@@ -109,7 +109,8 @@ end
 --- @param text string The markdown text to parse
 --- @return string html The rendered HTML string
 --- @return string|nil error Error message if parsing failed (currently always returns html)
-function parse_markdown(text)
+function parse_markdown(text, parse_lists)
+    if parse_lists == nil then parse_lists = true end
     if not text or text == "" then
         return ""
     end
@@ -193,13 +194,13 @@ function parse_markdown(text)
             i = i + 1
 
                    -- Continue collecting continuation lines until we hit a block boundary
-                    while i <= #lines and
-                          not lines[i]:match("^#{1,6}%s+") and
-                          not lines[i]:match("^[-*_]{3,}$") and
-                          not lines[i]:match("^>%s+") and
-                          not lines[i]:gsub("^%s+", ""):match("^[-*+]%s+") and
-                          not lines[i]:gsub("^%s+", ""):match("^%d+%.%s+") and
-                   not lines[i]:match("^|") do
+                   while i <= #lines and
+                         not lines[i]:match("^#{1,6}%s+") and
+                         not lines[i]:match("^[-*_]{3,}$") and
+                         not lines[i]:match("^%s*[-*+]%s+") and
+                         not lines[i]:match("^%s*%d+%.%s+") and
+                         not lines[i]:match("^|") and
+                         lines[i] ~= "" do
                 -- If this line starts with >, strip the marker and include it
                 if lines[i]:match("^>%s*") then
                     local content = lines[i]:gsub("^>%s*", "")
@@ -209,17 +210,17 @@ function parse_markdown(text)
                 end
                 i = i + 1
             end
-            local blockquote_content = table.concat(blockquote_lines, "\n")
+             local blockquote_content = table.concat(blockquote_lines, "\n")
 
-            -- Check if this is an aside blockquote (starts with [!ASIDE])
-            if blockquote_lines[1] and blockquote_lines[1]:match("^%[!ASIDE%]%s*") then
-                -- Strip the [!ASIDE] marker from the first line
-                blockquote_lines[1] = blockquote_lines[1]:gsub("^%[!ASIDE%]%s*", "")
-                local aside_content = table.concat(blockquote_lines, "\n")
-                table.insert(html_parts, string.format("<aside>%s</aside>", parse_markdown(aside_content)))
-            else
-                table.insert(html_parts, string.format("<blockquote>%s</blockquote>", parse_markdown(blockquote_content)))
-            end
+             -- Check if this is an aside blockquote (starts with [!ASIDE])
+             if blockquote_lines[1] and blockquote_lines[1]:match("^%[!ASIDE%]%s*") then
+                 -- Strip the [!ASIDE] marker from the first line
+                 blockquote_lines[1] = blockquote_lines[1]:gsub("^%[!ASIDE%]%s*", "")
+                 local aside_content = table.concat(blockquote_lines, "\n")
+                 table.insert(html_parts, string.format("<aside>%s</aside>", parse_markdown(aside_content)))
+             else
+                 table.insert(html_parts, string.format("<blockquote>%s</blockquote>", parse_markdown(blockquote_content)))
+             end
 
         -- HTML blocks (type 1: pre, script, style, textarea)
         elseif line:match("^%s*<pre%s*>") or line:match("^%s*<script%s*>") or
@@ -366,79 +367,25 @@ function parse_markdown(text)
                 table.insert(html_parts, string.format("<pre><code>%s</code></pre>", escape_html(code)))
             end
 
-         -- Unordered list
-         elseif line:match("^%s*[-*+]%s+") then
-             local list_items = {}
-             while i <= #lines and lines[i]:match("^%s*[-*+]%s+") do
-                  -- Collect all lines for this list item
-                  local item_lines = {}
-                  local trimmed_line = lines[i]:gsub("^%s+", "")
-                  local content = trimmed_line:gsub("^[-*+]%s+", "")
-                 table.insert(item_lines, content)
-                 i = i + 1
-
-                  -- Continue collecting continuation lines until we hit a block boundary
-                  while i <= #lines and
-                        not lines[i]:match("^#{1,6}%s+") and
-                        not lines[i]:match("^[-*_]{3,}$") and
-                        not lines[i]:match("^>%s*") and
-                        not lines[i]:match("^[-*+]%s+") and
-                        not lines[i]:match("^%d+%.%s+") and
-                        not lines[i]:match("^|") do
-                     local current_line = lines[i]
-                     if current_line:match("^%s*$") then
-                         -- Blank line: check if next non-blank line should be included
-                         local next_non_blank_idx = i + 1
-                         while next_non_blank_idx <= #lines and lines[next_non_blank_idx]:match("^%s*$") do
-                             next_non_blank_idx = next_non_blank_idx + 1
-                         end
-                         if next_non_blank_idx <= #lines then
-                             local next_line = lines[next_non_blank_idx]
-                             -- Include blank line only if next non-blank line is indented or is a code block
-                             if next_line:match("^%s+") or next_line:match("^```") then
-                                 table.insert(item_lines, current_line)
-                                 i = i + 1
-                             else
-                                 -- Stop before this blank line - unindented content shouldn't be in list item
-                                 break
-                             end
-                         else
-                             -- End of input, include the blank line
-                             table.insert(item_lines, current_line)
-                             i = i + 1
-                         end
-                     else
-                         table.insert(item_lines, current_line)
-                         i = i + 1
-                     end
-                  end
-
-                  -- Join all lines for this list item and parse recursively (allows nested code blocks)
-                  local item_content = table.concat(item_lines, "\n")
-                  local parsed_item_content = parse_markdown(item_content)
-                  table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
-             end
-             table.insert(html_parts, string.format("<ul>%s</ul>", table.concat(list_items)))
-
-          -- Ordered list
-          elseif line:match("^%s*%d+%.%s+") then
+          -- Unordered list
+          elseif parse_lists and line:match("^%s*[-*+]%s+") then
               local list_items = {}
-              while i <= #lines and lines[i]:match("^%s*%d+%.%s+") do
-                  -- Collect all lines for this list item
-                  local item_lines = {}
-                  local trimmed_line = lines[i]:gsub("^%s+", "")
-                  local content = trimmed_line:gsub("^%d+%.%s+", "")
-                 table.insert(item_lines, content)
-                 i = i + 1
+              while i <= #lines and lines[i]:match("^%s*[-*+]%s+") do
+                   -- Collect all lines for this list item
+                   local item_lines = {}
+                   local trimmed_line = lines[i]:gsub("^%s+", "")
+                   local content = trimmed_line:gsub("^[-*+]%s+", "")
+                  table.insert(item_lines, content)
+                  i = i + 1
 
-                  -- Continue collecting continuation lines until we hit a block boundary
-                  while i <= #lines and
-                        not lines[i]:match("^#{1,6}%s+") and
-                        not lines[i]:match("^[-*_]{3,}$") and
-                        not lines[i]:match("^>%s*") and
-                        not lines[i]:match("^[-*+]%s+") and
-                        not lines[i]:match("^%d+%.%s+") and
-                        not lines[i]:match("^|") do
+                   -- Continue collecting continuation lines until we hit a block boundary
+                   while i <= #lines and
+                         not lines[i]:match("^#{1,6}%s+") and
+                         not lines[i]:match("^[-*_]{3,}$") and
+                         not lines[i]:match("^>%s*") and
+                         not lines[i]:match("^%s*[-*+]%s+") and
+                         not lines[i]:match("^%s*%d+%.%s+") and
+                         not lines[i]:match("^|") do
                      local current_line = lines[i]
                      if current_line:match("^%s*$") then
                          -- Blank line: check if next non-blank line should be included
@@ -467,12 +414,66 @@ function parse_markdown(text)
                      end
                   end
 
-                  -- Join all lines for this list item and parse recursively (allows nested code blocks)
-                  local item_content = table.concat(item_lines, "\n")
-                  local parsed_item_content = parse_markdown(item_content)
-                  table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
+                   -- Join all lines for this list item and parse recursively (allows nested code blocks but not lists)
+                   local item_content = table.concat(item_lines, "\n")
+                   local parsed_item_content = parse_markdown(item_content, false)
+                   table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
               end
-              table.insert(html_parts, string.format("<ol>%s</ol>", table.concat(list_items)))
+              table.insert(html_parts, string.format("<ul>%s</ul>", table.concat(list_items)))
+
+           -- Ordered list
+           elseif parse_lists and line:match("^%s*%d+%.%s+") then
+               local list_items = {}
+               while i <= #lines and lines[i]:match("^%s*%d+%.%s+") do
+                   -- Collect all lines for this list item
+                   local item_lines = {}
+                   local trimmed_line = lines[i]:gsub("^%s+", "")
+                   local content = trimmed_line:gsub("^%d+%.%s+", "")
+                  table.insert(item_lines, content)
+                  i = i + 1
+
+                   -- Continue collecting continuation lines until we hit a block boundary
+                   while i <= #lines and
+                         not lines[i]:match("^#{1,6}%s+") and
+                         not lines[i]:match("^[-*_]{3,}$") and
+                         not lines[i]:match("^>%s*") and
+                         not lines[i]:match("^%s*[-*+]%s+") and
+                         not lines[i]:match("^%s*%d+%.%s+") and
+                         not lines[i]:match("^|") do
+                     local current_line = lines[i]
+                     if current_line:match("^%s*$") then
+                         -- Blank line: check if next non-blank line should be included
+                         local next_non_blank_idx = i + 1
+                         while next_non_blank_idx <= #lines and lines[next_non_blank_idx]:match("^%s*$") do
+                             next_non_blank_idx = next_non_blank_idx + 1
+                         end
+                         if next_non_blank_idx <= #lines then
+                             local next_line = lines[next_non_blank_idx]
+                             -- Include blank line only if next non-blank line is indented or is a code block
+                             if next_line:match("^%s+") or next_line:match("^```") then
+                                 table.insert(item_lines, current_line)
+                                 i = i + 1
+                             else
+                                 -- Stop before this blank line - unindented content shouldn't be in list item
+                                 break
+                             end
+                         else
+                             -- End of input, include the blank line
+                             table.insert(item_lines, current_line)
+                             i = i + 1
+                         end
+                     else
+                         table.insert(item_lines, current_line)
+                         i = i + 1
+                     end
+                  end
+
+                   -- Join all lines for this list item and parse recursively (allows nested code blocks but not lists)
+                   local item_content = table.concat(item_lines, "\n")
+                   local parsed_item_content = parse_markdown(item_content, false)
+                   table.insert(list_items, string.format("<li>%s</li>", parsed_item_content))
+               end
+               table.insert(html_parts, string.format("<ol>%s</ol>", table.concat(list_items)))
 
         -- Table
         elseif line:match("^|") and i + 1 <= #lines and lines[i + 1]:match("^|[-:]+|") then
@@ -486,8 +487,8 @@ function parse_markdown(text)
                 -- Collect paragraph lines
                 local para_lines = {line}
                 i = i + 1
-                while i <= #lines and lines[i]:match("%S") and not lines[i]:match("^#{1,6}%s+") and not lines[i]:match("^[-*_]{3,}$") and not lines[i]:match("^>%s*") and not lines[i]:match("^```") and                          not lines[i]:gsub("^%s+", ""):match("^[-*+]%s+") and
-                         not lines[i]:gsub("^%s+", ""):match("^%d+%.%s+") and not lines[i]:match("^|") do
+                while i <= #lines and lines[i]:match("%S") and not lines[i]:match("^#{1,6}%s+") and not lines[i]:match("^[-*_]{3,}$") and not lines[i]:match("^>%s*") and not lines[i]:match("^```") and                          not lines[i]:match("^%s*[-*+]%s+") and
+                         not lines[i]:match("^%s*%d+%.%s+") and not lines[i]:match("^|") do
                         table.insert(para_lines, lines[i])
                         i = i + 1
                 end
