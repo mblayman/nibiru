@@ -9,6 +9,7 @@
 --- - Tables
 --- - Blockquotes
 --- - Horizontal rules
+--- - Footnotes ([^label] and [^label]: content)
 --- - YAML frontmatter parsing
 
 local yaml = require("nibiru.yaml")
@@ -119,7 +120,49 @@ function parse_markdown(text)
     end
 
     local html_parts = {}
+    local footnotes = {}  -- Store footnote definitions: {label = content}
     local i = 1
+
+    -- First pass: collect footnote definitions
+    local content_lines = {}
+    local j = 1
+    while j <= #lines do
+        local line = lines[j]
+        -- Check if this is a footnote definition: [^label]: content
+        local label = line:match("^%[%^([^%]]+)%]:%s*(.*)")
+        if label then
+            -- Collect continuation lines for the footnote
+            local footnote_content_start = line:gsub("^%[%^[^%]]+%]:%s*", "")
+            local footnote_lines = {footnote_content_start}  -- Remove the [^label]: part
+            j = j + 1
+            -- Continue collecting lines until we hit another footnote definition or other block element
+            -- (but allow blank lines within footnotes for paragraph separation)
+            while j <= #lines do
+                local next_line = lines[j]
+                if next_line:match("^%[%^[^%]]+%]:") or next_line:match("^#{1,6}%s+") or
+                   next_line:match("^[-*_]{3,}$") or next_line:match("^>%s*") or
+                   next_line:match("^```") or next_line:match("^[-*+]%s+") or
+                   next_line:match("^%d+%.%s+") or next_line:match("^|") or
+                   next_line:match("^%s*<") then
+                    -- Stop if we hit another footnote definition or other block element
+                    j = j - 1
+                    break
+                end
+                table.insert(footnote_lines, next_line)
+                j = j + 1
+            end
+            -- Join footnote lines and parse as markdown
+            local footnote_content = table.concat(footnote_lines, "\n")
+            footnote_content = footnote_content:gsub("^%s+", ""):gsub("%s+$", "")
+            footnotes[label] = parse_markdown(footnote_content)
+        else
+            table.insert(content_lines, line)
+        end
+        j = j + 1
+    end
+
+    -- Replace lines with content_lines (excluding footnote definitions)
+    lines = content_lines
 
     while i <= #lines do
         local line = lines[i]
@@ -450,7 +493,31 @@ function parse_markdown(text)
         end
     end
 
-    return table.concat(html_parts, "\n")
+    local result = table.concat(html_parts, "\n")
+
+    -- Add footnotes section if any footnotes were defined
+    if next(footnotes) then
+        local footnote_items = {}
+        for label, content in pairs(footnotes) do
+            -- If content starts with <p> and ends with </p>, extract the inner content
+            local inner_content = content
+            if content:match("^<p>") and content:match("</p>$") then
+                inner_content = content:match("^<p>(.+)</p>$")
+            end
+            table.insert(footnote_items, string.format('<li id="fn:%s"><p>%s&#160;<a href="#fnref:%s" class="footnote-backref" role="doc-backlink">&#8617;&#xfe0e;</a></p></li>', label, inner_content, label))
+        end
+        -- Sort footnotes by their first appearance in the document would be ideal,
+        -- but for simplicity, we'll sort them alphabetically by label
+        table.sort(footnote_items, function(a, b)
+            local label_a = a:match('id="fn:([^"]+)"')
+            local label_b = b:match('id="fn:([^"]+)"')
+            return label_a < label_b
+        end)
+        local footnotes_html = string.format('<div class="footnotes" role="doc-endnotes"><hr><ol>%s</ol></div>', table.concat(footnote_items, ""))
+        result = result .. "\n\n" .. footnotes_html
+    end
+
+    return result
 end
 
 --- Parse inline markdown elements within text
@@ -529,6 +596,11 @@ function parse_inline(text)
     -- Links and images
     result = result:gsub("!%[([^%]]+)%]%(([^%)]+)%)", '<img alt="%1" src="%2">')
     result = result:gsub("%[([^%]]+)%]%(([^%)]+)%)", '<a href="%2">%1</a>')
+
+    -- Footnote references [^label]
+    result = result:gsub("%[%^([^%]]+)%]", function(label)
+        return string.format('<sup id="fnref:%s"><a href="#fn:%s" class="footnote-ref" role="doc-noteref">%s</a></sup>', label, label, label)
+    end)
 
     -- Restore safe HTML tags
     for placeholder, tag in pairs(html_placeholders) do

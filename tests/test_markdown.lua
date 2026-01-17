@@ -932,10 +932,223 @@ function tests.test_mixed_aside_and_blockquote()
     -- Should contain blockquote tags
     assert(result.html:find("<blockquote>") ~= nil, "Should contain blockquote opening tag")
 
-    -- Content should be in correct tags
-    assert(result.html:find("This is an aside") ~= nil, "Should contain aside content")
-    assert(result.html:find("This is a regular blockquote") ~= nil, "Should contain blockquote content")
-    assert(result.html:find("Another aside") ~= nil, "Should contain second aside content")
+  -- Content should be in correct tags
+  assert(result.html:find("This is an aside") ~= nil, "Should contain aside content")
+  assert(result.html:find("This is a regular blockquote") ~= nil, "Should contain blockquote content")
+  assert(result.html:find("Another aside") ~= nil, "Should contain second aside content")
+end
+
+-- Test basic footnote functionality
+function tests.test_basic_footnote()
+  local content = [[
+This is a sentence with a footnote.[^1]
+
+[^1]: This is the footnote content.
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should contain footnote reference as superscript with link
+  assert(result.html:find('<sup id="fnref:1"><a href="#fn:1" class="footnote%-ref" role="doc%-noteref">1</a></sup>') ~= nil,
+         "Should contain footnote reference with correct HTML structure")
+
+  -- Should contain footnote definition in footer
+  assert(result.html:find('<div class="footnotes" role="doc%-endnotes"><hr><ol><li id="fn:1"><p>This is the footnote content%.&#160;<a href="#fnref:1" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li></ol></div>') ~= nil,
+         "Should contain footnote definition with correct HTML structure")
+
+  -- Should not contain the footnote definition marker [^1]:
+  assert(result.html:find('%[%^1%]:') == nil, "Footnote definition marker should not appear in output")
+end
+
+-- Test multiple footnotes
+function tests.test_multiple_footnotes()
+  local content = [[
+First footnote reference.[^1]
+
+Second footnote reference.[^2]
+
+[^1]: First footnote content.
+[^2]: Second footnote content.
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should contain both footnote references
+  assert(result.html:find('<sup id="fnref:1"><a href="#fn:1" class="footnote%-ref" role="doc%-noteref">1</a></sup>') ~= nil,
+         "Should contain first footnote reference")
+  assert(result.html:find('<sup id="fnref:2"><a href="#fn:2" class="footnote%-ref" role="doc%-noteref">2</a></sup>') ~= nil,
+         "Should contain second footnote reference")
+
+  -- Should contain both footnote definitions
+  assert(result.html:find('<li id="fn:1"><p>First footnote content%.&#160;<a href="#fnref:1" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
+         "Should contain first footnote definition")
+  assert(result.html:find('<li id="fn:2"><p>Second footnote content%.&#160;<a href="#fnref:2" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
+         "Should contain second footnote definition")
+
+  -- Should be in correct order in the footnotes section
+  local fn1_pos = result.html:find('<li id="fn:1">')
+  local fn2_pos = result.html:find('<li id="fn:2">')
+  assert(fn1_pos ~= nil and fn2_pos ~= nil and fn1_pos < fn2_pos,
+         "Footnotes should be in definition order")
+end
+
+-- Test footnote with complex content (markdown inside footnote)
+function tests.test_footnote_with_markdown()
+  local content = [[
+This has a footnote with **bold** and *italic* text.[^1]
+
+[^1]: This footnote has **bold** text, *italic* text, and a [link](https://example.com).
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should contain footnote reference
+  assert(result.html:find('<sup id="fnref:1"><a href="#fn:1" class="footnote%-ref" role="doc%-noteref">1</a></sup>') ~= nil,
+         "Should contain footnote reference")
+
+  -- Should contain footnote definition with processed markdown
+  assert(result.html:find('<li id="fn:1"><p>This footnote has <strong>bold</strong> text, <em>italic</em> text, and a <a href="https://example%.com">link</a>%.&#160;<a href="#fnref:1" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
+         "Should contain footnote definition with processed markdown")
+end
+
+-- Test footnote with multi-line content
+function tests.test_multiline_footnote()
+  local content = [[
+This is a reference.[^1]
+
+[^1]: This is the first line of the footnote.
+This is the second line.
+
+This is a new paragraph in the footnote.
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should contain footnote reference
+  assert(result.html:find('<sup id="fnref:1"><a href="#fn:1" class="footnote%-ref" role="doc%-noteref">1</a></sup>') ~= nil,
+         "Should contain footnote reference")
+
+  -- Should contain footnote definition with multiple paragraphs
+  assert(result.html:find('<li id="fn:1"><p>This is the first line of the footnote%.') ~= nil,
+         "Should contain first paragraph of footnote")
+  assert(result.html:find('This is the second line%.</p>') ~= nil,
+         "Should contain second line in first paragraph")
+  assert(result.html:find('<p>This is a new paragraph in the footnote%.&#160;<a href="#fnref:1" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
+         "Should contain second paragraph of footnote")
+end
+
+-- Test footnote without definition (should handle gracefully)
+function tests.test_footnote_without_definition()
+  local content = [[
+This references a footnote that doesn't exist.[^missing]
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should contain footnote reference even without definition
+  assert(result.html:find('<sup id="fnref:missing"><a href="#fn:missing" class="footnote%-ref" role="doc%-noteref">missing</a></sup>') ~= nil,
+         "Should contain footnote reference even without definition")
+
+  -- Should not contain footnotes section since no definitions exist
+  assert(result.html:find('<div class="footnotes"') == nil,
+         "Should not contain footnotes section when no definitions exist")
+end
+
+-- Test footnote definition without reference (should still appear)
+function tests.test_footnote_definition_without_reference()
+  local content = [[
+Some content.
+
+[^unused]: This footnote is defined but never referenced.
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should not contain footnote reference
+  assert(result.html:find('<sup id="fnref:unused">') == nil,
+         "Should not contain footnote reference for unused footnote")
+
+  -- Should still contain footnote definition in footer
+  assert(result.html:find('<div class="footnotes" role="doc%-endnotes"><hr><ol><li id="fn:unused"><p>This footnote is defined but never referenced%.&#160;<a href="#fnref:unused" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li></ol></div>') ~= nil,
+         "Should contain footnote definition even without reference")
+end
+
+-- Test footnote with numeric label
+function tests.test_footnote_numeric_label()
+  local content = [[
+Numeric footnote.[^42]
+
+[^42]: This footnote has a numeric label.
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should contain footnote reference with numeric label
+  assert(result.html:find('<sup id="fnref:42"><a href="#fn:42" class="footnote%-ref" role="doc%-noteref">42</a></sup>') ~= nil,
+         "Should contain footnote reference with numeric label")
+
+  -- Should contain footnote definition
+  assert(result.html:find('<li id="fn:42"><p>This footnote has a numeric label%.&#160;<a href="#fnref:42" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
+         "Should contain footnote definition with numeric label")
+end
+
+-- Test footnote with alphanumeric label
+function tests.test_footnote_alphanumeric_label()
+  local content = [[
+Alphanumeric footnote.[^note1]
+
+[^note1]: This footnote has an alphanumeric label.
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should contain footnote reference with alphanumeric label
+  assert(result.html:find('<sup id="fnref:note1"><a href="#fn:note1" class="footnote%-ref" role="doc%-noteref">note1</a></sup>') ~= nil,
+         "Should contain footnote reference with alphanumeric label")
+
+  -- Should contain footnote definition
+  assert(result.html:find('<li id="fn:note1"><p>This footnote has an alphanumeric label%.&#160;<a href="#fnref:note1" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
+         "Should contain footnote definition with alphanumeric label")
+end
+
+-- Test multiple references to same footnote
+function tests.test_multiple_references_same_footnote()
+  local content = [[
+First reference.[^1] Second reference to same footnote.[^1]
+
+[^1]: This footnote is referenced twice.
+]]
+
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+
+  -- Should contain two footnote references
+  local ref_count = 0
+  for _ in result.html:gmatch('<sup id="fnref:1">') do
+    ref_count = ref_count + 1
+  end
+  assert(ref_count == 2, string.format("Expected 2 footnote references, but found %d", ref_count))
+
+  -- Should contain one footnote definition
+  assert(result.html:find('<li id="fn:1"><p>This footnote is referenced twice%.&#160;<a href="#fnref:1" class="footnote%-backref" role="doc%-backlink">&#8617;&#xfe0e;</a></p></li>') ~= nil,
+         "Should contain footnote definition")
 end
 
 return tests

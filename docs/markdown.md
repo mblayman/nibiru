@@ -147,6 +147,10 @@ end
 
 The parser uses a full-featured Markdown renderer supporting:
 
+### Footnotes
+
+See the [Footnotes](#footnotes) section below for detailed documentation.
+
 ### Headers
 
 ```markdown
@@ -241,6 +245,118 @@ The `[!ASIDE]` marker is not included in the rendered output.
 | Cell 1   | Cell 2   |
 | Cell 3   | Cell 4   |
 ```
+
+### Footnotes
+
+Nibiru supports footnotes using a syntax similar to GitHub Flavored Markdown and Hugo. Footnotes allow you to add references and additional content that appears at the bottom of the document.
+
+#### Footnote References
+
+Create a footnote reference in your text using square brackets with a caret:
+
+```markdown
+This is a sentence with a footnote.[^1]
+```
+
+The footnote reference will be rendered as a superscript link:
+
+```html
+<sup id="fnref:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup>
+```
+
+#### Footnote Definitions
+
+Define footnote content anywhere in the document (typically at the bottom) using the same label:
+
+```markdown
+[^1]: This is the footnote content.
+```
+
+Footnote definitions are not displayed where they appear in the markdown - they are collected and rendered at the bottom of the document.
+
+#### Complete Example
+
+```markdown
+## Document Title
+
+This is the main content with a footnote reference.[^1]
+
+Later in the document, you can add another reference to the same footnote.[^1]
+
+And here's a second footnote.[^2]
+
+[^1]: This is the first footnote. It can contain **bold** and *italic* text,
+as well as [links](https://example.com).
+
+[^2]: This is the second footnote with multiple paragraphs.
+
+This paragraph is still part of the second footnote.
+
+Footnotes can span multiple lines and paragraphs.
+```
+
+**Rendered HTML:**
+```html
+<h2>Document Title</h2>
+
+<p>This is the main content with a footnote reference.<sup id="fnref:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup></p>
+
+<p>Later in the document, you can add another reference to the same footnote.<sup id="fnref:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup></p>
+
+<p>And here's a second footnote.<sup id="fnref:2"><a href="#fn:2" class="footnote-ref" role="doc-noteref">2</a></sup></p>
+
+<div class="footnotes" role="doc-endnotes">
+<hr>
+<ol>
+<li id="fn:1">
+<p>This is the first footnote. It can contain <strong>bold</strong> and <em>italic</em> text, as well as <a href="https://example.com">links</a>.&#160;<a href="#fnref:1" class="footnote-backref" role="doc-backlink">&#8617;&#xfe0e;</a></p>
+</li>
+<li id="fn:2">
+<p>This is the second footnote with multiple paragraphs.</p>
+<p>This paragraph is still part of the second footnote.</p>
+<p>Footnotes can span multiple lines and paragraphs.&#160;<a href="#fnref:2" class="footnote-backref" role="doc-backlink">&#8617;&#xfe0e;</a></p>
+</li>
+</ol>
+</div>
+```
+
+#### Footnote Features
+
+- **Multiple references**: The same footnote can be referenced multiple times
+- **Any label**: Labels can be numbers (`[^1]`), letters (`[^note]`), or alphanumeric (`[^note1]`)
+- **Rich content**: Footnotes can contain any markdown formatting (bold, italic, links, lists, etc.)
+- **Multi-paragraph**: Footnotes can span multiple paragraphs separated by blank lines
+- **Order independence**: Footnote definitions can appear anywhere in the document - they will always be rendered at the end in the order they are first referenced
+- **Optional definitions**: Footnote references without definitions will still render (but won't link to anything)
+- **Optional references**: Footnote definitions without references will still appear at the bottom
+
+#### Footnote Labels
+
+Footnote labels can contain letters, numbers, and underscores. Common patterns:
+
+```markdown
+[^1]      -- Numeric labels
+[^note]   -- Text labels
+[^ref_1]  -- Alphanumeric with underscores
+```
+
+#### Footnote Content
+
+Footnote content supports all standard markdown features:
+
+```markdown
+[^1]: This footnote contains:
+- A list item
+- Another item
+
+And **bold text**, *italic text*, and [links](url).
+
+It can span multiple paragraphs.
+```
+
+#### Hugo Compatibility
+
+Nibiru's footnote implementation produces HTML output compatible with Hugo's footnote rendering, making it easy to migrate content or maintain consistency across different static site generators.
 
 ## Error Handling
 
