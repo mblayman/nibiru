@@ -1402,5 +1402,165 @@ with discussion about containers.
     assert(macro_start_pos < ol_pos and ol_pos < stop_pos, "Ordered list should appear within the second unordered list item")
   end
 
- return tests
+-- Test basic underscore italic functionality
+function tests.test_underscore_italic_basic()
+  local content = "This is _italic_ text."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  assert(result.html:find("<em>italic</em>") ~= nil, "Underscore italics should be converted to em tags")
+end
+
+-- Test mixed asterisk and underscore italics
+function tests.test_mixed_asterisk_underscore_italics()
+  local content = "This has *asterisk* and _underscore_ italics."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  assert(result.html:find("<em>asterisk</em>") ~= nil, "Asterisk italics should work")
+  assert(result.html:find("<em>underscore</em>") ~= nil, "Underscore italics should work")
+end
+
+-- Test underscore italics should not match words with underscores (edge case)
+function tests.test_underscore_not_word_underscores()
+  local content = "This is database_name and function_call, not italic."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  -- Should not italicize words with underscores
+  assert(result.html:find("<em>database_name</em>") == nil, "Words with underscores should not be italicized")
+  assert(result.html:find("<em>function_call</em>") == nil, "Words with underscores should not be italicized")
+  -- Should preserve the underscores as-is
+  assert(result.html:find("database_name") ~= nil, "Words with underscores should be preserved")
+  assert(result.html:find("function_call") ~= nil, "Words with underscores should be preserved")
+end
+
+-- Test underscore italics with word boundaries
+function tests.test_underscore_italic_word_boundaries()
+  local content = "This _italic_ is word_bounded, but this_is_not."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  assert(result.html:find("<em>italic</em>") ~= nil, "Proper underscore italics should be converted")
+  assert(result.html:find("<em>this_is_not</em>") == nil, "Words with underscores should not be italicized")
+  assert(result.html:find("this_is_not") ~= nil, "Words with underscores should be preserved")
+end
+
+-- Test underscore italics with punctuation
+function tests.test_underscore_italic_with_punctuation()
+  local content = "This _italic_! And _this_ too."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  assert(result.html:find("<em>italic</em>!") ~= nil, "Underscore italics should work with punctuation after")
+  assert(result.html:find("And <em>this</em> too") ~= nil, "Underscore italics should work with punctuation before/after")
+end
+
+-- Test double underscores should not be italic (bold handling)
+function tests.test_double_underscore_not_italic()
+  local content = "This __bold__ is not italic."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  assert(result.html:find("<em>bold</em>") == nil, "Double underscores should not create italics")
+  -- Note: This test assumes double underscores are handled by bold processing (implementation dependent)
+end
+
+-- Test nested formatting with underscores
+function tests.test_nested_formatting_underscores()
+  local content = "This is **_bold italic_** text."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  -- Should handle nested bold + italic
+  -- According to CommonMark, underscores inside ** should not create emphasis
+  -- The underscores should be treated literally, not as emphasis delimiters
+  assert(result.html:find("<strong>_bold italic_</strong>") ~= nil, "Nested bold should preserve underscores literally")
+end
+
+-- Test escaped underscores should not emphasize
+function tests.test_escaped_underscore_no_emphasis()
+  local content = "This \\_not italic_ and _this is_."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  assert(result.html:find("<em>not italic</em>") == nil, "Escaped underscores should prevent emphasis")
+  assert(result.html:find("<em>this is</em>") ~= nil, "Unescaped underscores should still work")
+  assert(result.html:find("\\_not italic_") ~= nil, "Escaped underscore should be preserved")
+end
+
+-- Test underscore italics with spaces (should not emphasize)
+function tests.test_underscore_with_spaces_no_emphasis()
+  local content = "This _ not italic _ because spaces."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  assert(result.html:find("<em>") == nil, "Underscores with spaces should not create emphasis")
+  assert(result.html:find("_ not italic _") ~= nil, "Should preserve underscores with spaces")
+end
+
+-- Test underscore italics in different contexts
+function tests.test_underscore_italics_contexts()
+  local content = [[
+# _Header Italic_
+
+> _Blockquote italic_
+
+* _List italic_ item
+
+`_code not italic_`
+]]
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  
+  -- Header with underscore italics
+  assert(result.html:find("<h1><em>Header Italic</em></h1>") ~= nil, "Header should support underscore italics")
+  
+  -- Blockquote with underscore italics
+  assert(result.html:find("<blockquote>") ~= nil, "Should have blockquote")
+  assert(result.html:find("<em>Blockquote italic</em>") ~= nil, "Blockquote should support underscore italics")
+  
+  -- List item with underscore italics
+  assert(result.html:find("<ul>") ~= nil, "Should have unordered list")
+  assert(result.html:find("<em>List italic</em>") ~= nil, "List should support underscore italics")
+  
+  -- Code span should NOT italicize
+  assert(result.html:find("<code>_code not italic_</code>") ~= nil, "Code spans should not process underscore italics")
+  assert(result.html:find("<em>code not italic</em>") == nil, "Code content should not be italicized")
+end
+
+-- Test multiple underscore italics in same line
+function tests.test_multiple_underscore_italics_same_line()
+  local content = "_First_ and _second_ and _third_."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  assert(result.html:find("<em>First</em>") ~= nil, "First italic should work")
+  assert(result.html:find("<em>second</em>") ~= nil, "Second italic should work")
+  assert(result.html:find("<em>third</em>") ~= nil, "Third italic should work")
+end
+
+-- Test asterisk vs underscore precedence
+function tests.test_asterisk_underscore_precedence()
+  local content = "This is *_mixed_* and **_nested_** formatting."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  -- Should handle mixed delimiters correctly (exact behavior depends on implementation)
+  assert(result.html:find("<em>") ~= nil, "Should have some emphasis")
+end
+
+-- Test underscore italics with numbers
+function tests.test_underscore_italics_with_numbers()
+  local content = "Version _1.2.3_ is stable, but v_1.2.3_beta is not."
+  local result, err = markdown.parse(content)
+  assert.is_nil(err)
+  assert.is_string(result.html)
+  assert(result.html:find("<em>1.2.3</em>") ~= nil, "Numbers in underscores should be italicized")
+  assert(result.html:find("<em>1.2.3_beta</em>") == nil, "Words with underscores should not be italicized")
+  assert(result.html:find("v_1.2.3_beta") ~= nil, "Version with underscore should be preserved")
+end
+
+  return tests
 
