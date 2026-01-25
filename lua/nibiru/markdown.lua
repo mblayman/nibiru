@@ -623,7 +623,138 @@ function parse_inline(text)
     for placeholder, tag in pairs(html_placeholders) do
         result = result:gsub(placeholder, tag)
     end
-
+    
+    -- Helper function to process underscores outside code spans
+    local function process_underscores_outside_code(text)
+        local processed = text
+        
+        -- Protect escaped underscore placeholders and split cases
+        processed = processed:gsub("§§ESCAPED_UNDERSCORE_PLACEHOLDER§§([^_]*)_", "§§PROTECTED_ESCAPED§§%1§§PROTECTED_ESCAPED_END§§")
+        
+        -- Process valid underscore emphasis with specific patterns
+        -- These patterns avoid matches on content with underscores
+        
+        -- 1. At start of line: _word_
+        processed = processed:gsub("^_([^_]+)_", "<em>%1</em>")
+        
+        -- 2. After space or punctuation, followed by non-space content: _word_ 
+        processed = processed:gsub("%s_([^_]+)_(%p)", " <em>%1</em>%2")
+        processed = processed:gsub("(%p)_([^_]+)_(%p)", "%1<em>%2</em>%3")
+        
+        -- 3. After space or punctuation, followed by non-space content, ending anywhere: _word
+        processed = processed:gsub("%s_([^_]+)_", " <em>%1</em>")
+        processed = processed:gsub("(%p)_([^_]+)_", "%1<em>%2</em>")
+        
+        -- 4. Before punctuation or end: _word_
+        processed = processed:gsub("_([^_]+)_(%p)", "<em>%1</em>%2")
+        processed = processed:gsub("_([^_]+)_$", "<em>%1</em>")
+        
+        -- 5. In middle of text (not surrounded by spaces)
+        processed = processed:gsub("([^%s])_([^_]+)_(%p)", "%1<em>%2</em>%3")
+        processed = processed:gsub("([^%s])_([^_]+)_%s", "%1<em>%2</em> ")
+        
+        return processed
+    end
+    
+    -- Process underscore italics with step-by-step approach
+    -- First, preserve escaped underscores and double underscores, plus spaces case
+    result = result:gsub("\\_", "§§ESCAPED_UNDERSCORE_PLACEHOLDER§§")
+    
+    -- Protect underscores inside existing bold/strong tags (should remain literal)
+    result = result:gsub("(<strong[^>]*>)(.-)(</strong>)", function(open, content, close)
+        -- Replace any underscores in content with placeholders
+        content = content:gsub("_", "§§BOLD_UNDERSCORE§§")
+        return open .. content .. close
+    end)
+    
+    result = result:gsub("__(.-)__", function(content)
+        return "§§DOUBLE_UNDERSCORE§§" .. content .. "§§DOUBLE_UNDERSCORE§§"
+    end)
+    -- Protect underscores with spaces around them (should not be emphasized)
+    result = result:gsub("%s_([^%s]+)_%s", " _%1_ ")
+    
+    -- Process each line for underscore emphasis
+    local lines = {}
+    for line in result:gmatch("[^\n]*") do
+        table.insert(lines, line)
+    end
+    
+    for i, line in ipairs(lines) do
+        local processed = line
+        
+        -- 1. Skip processing in code spans (preserve underscores in <code> tags)
+        if processed:find("<code>") then
+            -- Handle code spans by processing outside them only
+            local result_parts = {}
+            local current_part = ""
+            local pos = 1
+            
+            while pos <= #processed do
+                local code_start = processed:find("<code>", pos)
+                if not code_start then
+                    -- No more code tags, process remaining part
+                    current_part = processed:sub(pos)
+                    table.insert(result_parts, process_underscores_outside_code(current_part))
+                    break
+                else
+                    -- Process part before code tag
+                    current_part = processed:sub(pos, code_start - 1)
+                    table.insert(result_parts, process_underscores_outside_code(current_part))
+                    
+                    -- Find closing code tag
+                    local code_end = processed:find("</code>", code_start)
+                    if code_end then
+                        -- Include the entire code tag as-is
+                        current_part = processed:sub(code_start, code_end)
+                        table.insert(result_parts, current_part)
+                        pos = code_end + 1
+                    else
+                        -- No closing tag found, treat rest as code
+                        current_part = processed:sub(code_start)
+                        table.insert(result_parts, current_part)
+                        break
+                    end
+                end
+            end
+            
+            processed = table.concat(result_parts)
+        else
+            -- No code spans, process entire line
+            processed = process_underscores_outside_code(processed)
+        end
+        
+        lines[i] = processed
+    end
+    
+    result = table.concat(lines, "\n")
+    
+    -- Restore double underscores
+    result = result:gsub("§§DOUBLE_UNDERSCORE§§", "__")
+    
+    -- Fix any <em> tags that shouldn't be there (spaces case)
+    result = result:gsub("<em>([^<]*%s[^<]*)</em>", function(content)
+        if content:match("^%s.*%s$") then
+            return "_" .. content .. "_"
+        end
+        return "<em>" .. content .. "</em>"
+    end)
+    
+    -- Restore underscores inside bold tags
+    result = result:gsub("§§BOLD_UNDERSCORE§§", "_")
+    
+    -- Ensure underscores inside HTML tags remain literal
+    result = result:gsub("<(strong|b|em|i)>(.-)</%1>", function(tag, content)
+        content = content:gsub("<em>(.-)</em>", function(italic_content)
+            return "_" .. italic_content .. "_"
+        end)
+        return "<" .. tag .. ">" .. content .. "</" .. tag .. ">"
+    end)
+    
+    -- Restore escaped underscore placeholders
+    result = result:gsub("§§PROTECTED_ESCAPED§§([^_]*)§§PROTECTED_ESCAPED_END§§", "\\_%1_")
+    result = result:gsub("§§PROTECTED_ESCAPED§§", "\\_")
+    result = result:gsub("§§ESCAPED_UNDERSCORE_PLACEHOLDER§§", "\\_")
+    
     return result
 end
 
