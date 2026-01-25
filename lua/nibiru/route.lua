@@ -6,6 +6,11 @@ local NOT_ALLOWED = 2
 -- Converter type is not optional!
 local PARAMETER_PATTERN = "{([a-zA-Z_][a-zA-Z0-9_]*)(:[a-zA-Z_][a-zA-Z0-9_]*)}"
 
+-- Escape special regex characters in literal path segments
+local function escape_regex_literal(literal)
+    return literal:gsub("([%-%^%$%(%)%%%.%[%]%*%+%?])", "%%%1")
+end
+
 local CONVERTER_PATTERNS = {
     -- string should include any character except a slash.
     string = "([^/]+)",
@@ -33,8 +38,8 @@ local function make_path_matcher(path)
     while index <= path_length do
         parameter_start, parameter_end = string.find(path, PARAMETER_PATTERN, index)
         if parameter_start then
-            -- Include any literal characters before the parameter.
-            pattern = pattern .. string.sub(path, index, parameter_start - 1)
+            -- Include any literal characters before the parameter, escaped for regex.
+            pattern = pattern .. escape_regex_literal(string.sub(path, index, parameter_start - 1))
 
             local _, converter = string.match(path, PARAMETER_PATTERN, parameter_start)
             local converter_type = string.sub(converter, 2) -- strip off the colon
@@ -48,8 +53,8 @@ local function make_path_matcher(path)
             table.insert(converters, converter_type)
             index = parameter_end + 1
         else
-            -- No parameters. Capture any remaining portion.
-            pattern = pattern .. string.sub(path, index)
+            -- No parameters. Capture any remaining portion, escaped for regex.
+            pattern = pattern .. escape_regex_literal(string.sub(path, index))
             break
         end
     end

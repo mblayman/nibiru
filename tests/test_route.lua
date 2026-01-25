@@ -346,4 +346,45 @@ function tests.test_url_for_string_parameter_type_validation()
     assert.equal("/users/123", url2)
 end
 
+-- Route patterns with dashes should match paths containing dashes.
+function tests.test_dash_literal_pattern_matching()
+    -- Test case from the bug report: understand-django/{slug:string}
+    local route = Route("/understand-django/{slug:string}", function() end)
+
+    -- These should all match
+    assert.equal(Route.MATCH, route:matches("GET", "/understand-django/browser-to-django"))
+    assert.equal(Route.MATCH, route:matches("GET", "/understand-django/hello-world"))
+    assert.equal(Route.MATCH, route:matches("GET", "/understand-django/test-case"))
+    
+    -- These should not match
+    assert.equal(Route.NO_MATCH, route:matches("GET", "/understand-django"))
+    assert.equal(Route.NO_MATCH, route:matches("GET", "/understand-django/"))
+    assert.equal(Route.NO_MATCH, route:matches("GET", "/understand-django/some/path"))
+    
+    -- Verify pattern generation includes dash literals correctly
+    assert.equal("^/understand%-django/([^/]+)$", route.path_pattern)
+end
+
+-- Route patterns with multiple dash segments should work.
+function tests.test_multiple_dash_segments()
+    local route = Route("/api/v2/endpoint-name/{id:string}", function() end)
+
+    assert.equal(Route.MATCH, route:matches("GET", "/api/v2/endpoint-name/123"))
+    assert.equal(Route.MATCH, route:matches("GET", "/api/v2/endpoint-name/some-value"))
+    assert.equal(Route.NO_MATCH, route:matches("GET", "/api/v2/other-endpoint/123"))
+    
+    assert.equal("^/api/v2/endpoint%-name/([^/]+)$", route.path_pattern)
+end
+
+-- Route patterns starting with dash-like patterns should work.
+function tests.test_dash_starting_segments()
+    local route = Route("/test-dash/{slug:string}", function() end)
+
+    assert.equal(Route.MATCH, route:matches("GET", "/test-dash/value"))
+    assert.equal(Route.MATCH, route:matches("GET", "/test-dash/hello-world"))
+    assert.equal(Route.NO_MATCH, route:matches("GET", "/test/value"))
+    
+    assert.equal("^/test%-dash/([^/]+)$", route.path_pattern)
+end
+
 return tests
