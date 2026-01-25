@@ -163,10 +163,10 @@ See the [Footnotes](#footnotes) section below for detailed documentation.
 ```
 
 ### Text Formatting
-
 ```markdown
 **bold text**
 *italic text*
+_italic text_
 `inline code`
 ~~strikethrough~~
 ```
